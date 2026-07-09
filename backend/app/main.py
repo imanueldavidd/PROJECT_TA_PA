@@ -5,13 +5,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 # Baris di bawah ini diperbaiki agar meng-import auth DAN dashboard sekaligus
-from app.routers import auth, dashboard, jadwal, tiket, film, laporan, dashboard_manajer, staff
+from app.routers import auth, dashboard, jadwal, tiket, film, laporan, dashboard_manajer, staff, customer_auth, customer, banner
 import os
 
 app = FastAPI(
     title="API Pemesanan Tiket Bioskop",
     description="Backend sistem pemesanan tiket bioskop",
-    version="1.0.0"
+    version="1.0.0",
+    redirect_slashes=False
 )
 
 # ── CORS Pengaturan Gerbang Akses Frontend ──────────────────
@@ -42,6 +43,9 @@ app.include_router(film.router)
 app.include_router(laporan.router)
 app.include_router(dashboard_manajer.router)
 app.include_router(staff.router)
+app.include_router(customer_auth.router)
+app.include_router(customer.router)
+app.include_router(banner.router)
 
 # ── Health check ─────────────────────────────────────────
 @app.get("/", tags=["Root"])

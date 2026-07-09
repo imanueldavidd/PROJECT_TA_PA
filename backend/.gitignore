@@ -1,6 +1,28 @@
-.env
+# Virtual environment
 .venv/
+venv/
+env/
+
+# Environment variables (RAHASIA - jangan commit!)
+.env
+
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# Upload folder (gambar lokal)
 uploads/
+
+# Test files
 test_db.py
+test_email.py
+test_login.py
+reset_password.py
+reset_password_customer.py
+
+# IDE
+.vscode/
+.idea/

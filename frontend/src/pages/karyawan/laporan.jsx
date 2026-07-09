@@ -5,7 +5,11 @@ import { useState, useEffect } from 'react'
 import api from '../../services/api'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
-const posterSrc = (url) => url ? `${API_BASE}${url}` : null
+const posterSrc = (url) => {
+  if (!url) return null
+  if (url.startsWith('http')) return url        // Cloudinary URL
+  return `${API_BASE}${url}`                    // URL lokal lama
+}
 
 // ── Helper format Rupiah ──────────────────────────────────
 const fmtRupiah = (n) =>

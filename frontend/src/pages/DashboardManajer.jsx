@@ -8,7 +8,11 @@ import LaporanManajer from './manajer/LaporanManajer'
 import Staff from './manajer/Staff'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
-const posterSrc = (url) => url ? `${API_BASE}${url}` : null
+const posterSrc = (url) => {
+  if (!url) return null
+  if (url.startsWith('http')) return url        // Cloudinary URL
+  return `${API_BASE}${url}`                    // URL lokal lama
+}
 const fmtRupiah = (n) => 'Rp ' + new Intl.NumberFormat('id-ID').format(n || 0)
 
 const MENU = [

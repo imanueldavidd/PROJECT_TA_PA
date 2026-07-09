@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+is_production = os.getenv("MIDTRANS_IS_PRODUCTION", "False").lower() == "true"
+
 DB_HOST     = os.getenv('DB_HOST', 'localhost')
 DB_PORT     = os.getenv('DB_PORT', '3306')
 DB_USER     = os.getenv('DB_USER', 'root')

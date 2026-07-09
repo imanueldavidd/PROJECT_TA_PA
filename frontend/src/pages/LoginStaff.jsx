@@ -134,14 +134,6 @@ export default function LoginStaff() {
             </button>
           </form>
         </div>
-
-        {/* Link ke login customer */}
-        <p className="text-center text-gray-500 text-sm mt-6">
-          Pelanggan?{' '}
-          <a href="/login" className="text-blue-400 hover:text-blue-300 transition">
-            Login sebagai Customer
-          </a>
-        </p>
       </div>
     </div>
   )

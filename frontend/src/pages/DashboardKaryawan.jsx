@@ -9,6 +9,7 @@ import Jadwal  from './karyawan/Jadwal'
 import Tiket   from './karyawan/Tiket'
 import Film    from './karyawan/Film'
 import Laporan from './karyawan/Laporan'
+import Banner from './karyawan/Banner'
 
 // ── Menu sidebar karyawan ─────────────────────────────────
 const MENU = [
@@ -16,6 +17,7 @@ const MENU = [
   { to: '/dashboard/karyawan/jadwal',  label: 'Jadwal',    icon: '📅' },
   { to: '/dashboard/karyawan/tiket',   label: 'Tiket',     icon: '🎟' },
   { to: '/dashboard/karyawan/film',    label: 'Film',      icon: '🎬' },
+  { to: '/dashboard/karyawan/banner',   label: 'Banner',    icon: '🖼️' },
   { to: '/dashboard/karyawan/laporan', label: 'Laporan',   icon: '📊' },
 ]
 
@@ -131,6 +133,7 @@ export default function DashboardKaryawan() {
         <Route path="jadwal"  element={<Jadwal />} />
         <Route path="tiket"   element={<Tiket />} />
         <Route path="film"    element={<Film />} />
+        <Route path="banner"  element={<Banner />} />
         <Route path="laporan" element={<Laporan />} />
       </Routes>
     </SidebarLayout>

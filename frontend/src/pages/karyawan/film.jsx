@@ -7,7 +7,11 @@ import api from '../../services/api'
 const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 // ── Helper: URL poster ────────────────────────────────────
-const posterSrc = (url) => url ? `${API_BASE}${url}` : null
+const posterSrc = (url) => {
+  if (!url) return null
+  if (url.startsWith('http')) return url        // Cloudinary URL
+  return `${API_BASE}${url}`                    // URL lokal lama
+}
 
 // ── Rating options ────────────────────────────────────────
 const RATING_OPTIONS = ['SU (Semua Umur)', 'G', 'PG', 'PG-13', 'R', '17+', '21+']

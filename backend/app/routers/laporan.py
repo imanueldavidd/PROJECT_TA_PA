@@ -17,29 +17,25 @@ router = APIRouter(prefix="/api/laporan", tags=["Laporan"])
 #  SECTION 1: ENDPOINT UNTUK KARYAWAN (ALL-TIME / TANPA FILTER)
 # ==============================================================================
 
-# ── GET: Film terlaris (untuk carousel kartu atas) ───────
-@router.get("/film-terlaris", summary="Top film terlaris untuk kartu carousel (Karyawan)")
+# ── GET: Film terlaris all-time (untuk Laporan Karyawan) ──
+@router.get("/film-terlaris")
 def get_film_terlaris(
     limit: int = 4,
     db: Session = Depends(get_db),
     _: dict = Depends(verify_token)
 ):
-    """
-    Ambil film dengan tiket terjual terbanyak (lunas),
-    sekaligus hitung occupancy rate = tiket terjual / total kapasitas kursi
-    yang tersedia untuk jadwal-jadwal film tersebut.
-    """
     hasil = db.execute(text("""
         SELECT
             f.id,
             f.judul,
             f.genre,
             f.poster_url,
-            COUNT(dp.id) AS tiket_terjual,
+            COUNT(dp.id)                     AS tiket_terjual,
             COALESCE(kap.total_kapasitas, 0) AS total_kapasitas
         FROM film f
-        LEFT JOIN jadwal_tayang jt   ON jt.film_id = f.id
-        LEFT JOIN pemesanan p        ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
+        -- INNER JOIN: hanya film yang punya jadwal
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
+        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
         LEFT JOIN detail_pemesanan dp ON dp.pemesanan_id = p.id
         LEFT JOIN (
             SELECT jt2.film_id, SUM(s.kapasitas) AS total_kapasitas
@@ -52,23 +48,23 @@ def get_film_terlaris(
         LIMIT :limit
     """), {"limit": limit}).fetchall()
 
-    hasil_format = []
+    data = []
     for r in hasil:
-        occupancy = round((r.tiket_terjual / r.total_kapasitas) * 100) if r.total_kapasitas > 0 else 0
-        hasil_format.append({
-            "id":             r.id,
-            "judul":          r.judul,
-            "genre":          r.genre,
-            "poster_url":     r.poster_url,
-            "tiket_terjual":  r.tiket_terjual,
-            "occupancy":      occupancy,
+        occupancy = round((r.tiket_terjual / r.total_kapasitas) * 100) \
+                    if r.total_kapasitas > 0 else 0
+        data.append({
+            "id":            r.id,
+            "judul":         r.judul,
+            "genre":         r.genre,
+            "poster_url":    r.poster_url,
+            "tiket_terjual": r.tiket_terjual,
+            "occupancy":     occupancy,
         })
+    return data
 
-    return hasil_format
 
-
-# ── GET: Data chart film terlaris (bar chart) ─────────────
-@router.get("/chart-terlaris", summary="Data untuk bar chart film terlaris (Karyawan)")
+# ── GET: Chart all-time (untuk Laporan Karyawan) ──────────
+@router.get("/chart-terlaris")
 def get_chart_terlaris(
     limit: int = 7,
     db: Session = Depends(get_db),
@@ -77,8 +73,8 @@ def get_chart_terlaris(
     hasil = db.execute(text("""
         SELECT f.judul, COUNT(dp.id) AS tiket_terjual
         FROM film f
-        LEFT JOIN jadwal_tayang jt    ON jt.film_id = f.id
-        LEFT JOIN pemesanan p         ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
+        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
         LEFT JOIN detail_pemesanan dp ON dp.pemesanan_id = p.id
         GROUP BY f.id, f.judul
         ORDER BY tiket_terjual ASC
@@ -88,8 +84,8 @@ def get_chart_terlaris(
     return [{"judul": r.judul, "tiket_terjual": r.tiket_terjual} for r in hasil]
 
 
-# ── GET: Tabel film terlaris (dengan pagination) ──────────
-@router.get("/tabel-terlaris", summary="Tabel ranking film terlaris paginated (Karyawan)")
+# ── GET: Tabel all-time (untuk Laporan Karyawan) ──────────
+@router.get("/tabel-terlaris")
 def get_tabel_terlaris(
     page: int = Query(1, ge=1),
     per_page: int = Query(5, ge=1, le=50),
@@ -97,18 +93,27 @@ def get_tabel_terlaris(
     _: dict = Depends(verify_token)
 ):
     offset = (page - 1) * per_page
-    total_film = db.execute(text("SELECT COUNT(*) AS total FROM film")).fetchone().total
+
+    # Hanya hitung film yang punya jadwal
+    total_film = db.execute(text("""
+        SELECT COUNT(DISTINCT f.id) AS total
+        FROM film f
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
+    """)).fetchone().total
 
     hasil = db.execute(text("""
         SELECT
             f.id,
             f.judul,
-            COUNT(dp.id) AS tiket_terjual,
-            COALESCE(SUM(jt.harga_tiket), 0) AS total_pendapatan
+            COUNT(dp.id)                                          AS tiket_terjual,
+            COALESCE(SUM(
+                CASE WHEN p.status_bayar = 'lunas'
+                THEN jt.harga_tiket ELSE 0 END
+            ), 0)                                                  AS total_pendapatan
         FROM film f
-        LEFT JOIN jadwal_tayang jt     ON jt.film_id = f.id
-        LEFT JOIN pemesanan p          ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
-        LEFT JOIN detail_pemesanan dp  ON dp.pemesanan_id = p.id
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
+        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
+        LEFT JOIN detail_pemesanan dp ON dp.pemesanan_id = p.id
         GROUP BY f.id, f.judul
         ORDER BY tiket_terjual DESC
         LIMIT :limit OFFSET :offset
@@ -136,8 +141,8 @@ def get_tabel_terlaris(
 #  SECTION 2: ENDPOINT UNTUK MANAJER (DENGAN FILTER BULAN & TAHUN)
 # ==============================================================================
 
-# ── GET: Film terlaris dengan filter bulan/tahun (untuk Manajer Kartu Atas) ──
-@router.get("/film-terlaris-periode", summary="Top film terlaris berdasarkan filter bulan & tahun (Manajer)")
+# ── GET: Film terlaris dengan filter bulan/tahun ──────────
+@router.get("/film-terlaris-periode")
 def get_film_terlaris_periode(
     bulan: int = Query(..., ge=1, le=12),
     tahun: int = Query(...),
@@ -151,19 +156,24 @@ def get_film_terlaris_periode(
             f.judul,
             f.genre,
             f.poster_url,
-            COUNT(dp.id) AS tiket_terjual,
-            COALESCE(kap.total_kapasitas, 0) AS total_kapasitas
+            COUNT(dp.id)                        AS tiket_terjual,
+            COALESCE(kap.total_kapasitas, 0)    AS total_kapasitas
         FROM film f
-        LEFT JOIN jadwal_tayang jt ON jt.film_id = f.id
+        -- INNER JOIN: hanya film yang punya jadwal di bulan/tahun ini
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
             AND MONTH(jt.tanggal) = :bulan
             AND YEAR(jt.tanggal)  = :tahun
-        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
+        -- Hitung tiket terjual di periode ini
+        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id
+            AND p.status_bayar = 'lunas'
         LEFT JOIN detail_pemesanan dp ON dp.pemesanan_id = p.id
+        -- Hitung total kapasitas di periode ini
         LEFT JOIN (
             SELECT jt2.film_id, SUM(s.kapasitas) AS total_kapasitas
             FROM jadwal_tayang jt2
             JOIN studio s ON s.id = jt2.studio_id
-            WHERE MONTH(jt2.tanggal) = :bulan AND YEAR(jt2.tanggal) = :tahun
+            WHERE MONTH(jt2.tanggal) = :bulan
+              AND YEAR(jt2.tanggal)  = :tahun
             GROUP BY jt2.film_id
         ) kap ON kap.film_id = f.id
         GROUP BY f.id, f.judul, f.genre, f.poster_url, kap.total_kapasitas
@@ -173,7 +183,8 @@ def get_film_terlaris_periode(
 
     data = []
     for r in hasil:
-        occupancy = round((r.tiket_terjual / r.total_kapasitas) * 100) if r.total_kapasitas > 0 else 0
+        occupancy = round((r.tiket_terjual / r.total_kapasitas) * 100) \
+                    if r.total_kapasitas > 0 else 0
         data.append({
             "id":            r.id,
             "judul":         r.judul,
@@ -185,8 +196,8 @@ def get_film_terlaris_periode(
     return data
 
 
-# ── GET: Chart film terlaris dengan filter periode (Manajer Chart) ────────
-@router.get("/chart-terlaris-periode", summary="Bar chart film terlaris berdasarkan bulan & tahun (Manajer)")
+# ── GET: Chart film terlaris dengan filter periode ────────
+@router.get("/chart-terlaris-periode")
 def get_chart_terlaris_periode(
     bulan: int = Query(..., ge=1, le=12),
     tahun: int = Query(...),
@@ -195,12 +206,16 @@ def get_chart_terlaris_periode(
     _: dict = Depends(verify_token)
 ):
     hasil = db.execute(text("""
-        SELECT f.judul, COUNT(dp.id) AS tiket_terjual
+        SELECT
+            f.judul,
+            COUNT(dp.id) AS tiket_terjual
         FROM film f
-        LEFT JOIN jadwal_tayang jt ON jt.film_id = f.id
+        -- INNER JOIN: hanya film yang tayang di periode ini
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
             AND MONTH(jt.tanggal) = :bulan
             AND YEAR(jt.tanggal)  = :tahun
-        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
+        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id
+            AND p.status_bayar = 'lunas'
         LEFT JOIN detail_pemesanan dp ON dp.pemesanan_id = p.id
         GROUP BY f.id, f.judul
         ORDER BY tiket_terjual ASC
@@ -210,8 +225,8 @@ def get_chart_terlaris_periode(
     return [{"judul": r.judul, "tiket_terjual": r.tiket_terjual} for r in hasil]
 
 
-# ── GET: Tabel ranking dengan filter periode + pagination (VERSI FIX PAGINATION NYALA) ─
-@router.get("/tabel-terlaris-periode", summary="Tabel ranking film terlaris dengan filter periode (Manajer)")
+# ── GET: Tabel ranking dengan filter periode + pagination ──
+@router.get("/tabel-terlaris-periode")
 def get_tabel_terlaris_periode(
     bulan: int = Query(..., ge=1, le=12),
     tahun: int = Query(...),
@@ -221,26 +236,38 @@ def get_tabel_terlaris_periode(
     _: dict = Depends(verify_token)
 ):
     offset = (page - 1) * per_page
-    
-    # FIX 1: Menggunakan total seluruh film global agar tombol page di frontend tidak hilang/bernilai 0
-    total_film = db.execute(text("SELECT COUNT(*) AS total FROM film")).fetchone().total
 
-    # FIX 2: Mengubah JOIN menjadi LEFT JOIN agar master film tetap keluar di tabel walau bulan tersebut belum ada transaksi
+    # Total film yang PUNYA JADWAL di periode ini — bukan semua film
+    total_film = db.execute(text("""
+        SELECT COUNT(DISTINCT f.id) AS total
+        FROM film f
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
+            AND MONTH(jt.tanggal) = :bulan
+            AND YEAR(jt.tanggal)  = :tahun
+    """), {"bulan": bulan, "tahun": tahun}).fetchone().total
+
     hasil = db.execute(text("""
         SELECT
             f.id,
             f.judul,
-            COUNT(dp.id) AS tiket_terjual,
-            COALESCE(SUM(jt.harga_tiket), 0) AS total_pendapatan
+            COUNT(dp.id)             AS tiket_terjual,
+            -- Total pendapatan = harga tiket × jumlah tiket terjual
+            COALESCE(
+                SUM(CASE WHEN p.status_bayar = 'lunas' THEN jt.harga_tiket ELSE 0 END),
+                0
+            )                        AS total_pendapatan
         FROM film f
-        LEFT JOIN jadwal_tayang jt ON jt.film_id = f.id
-            AND MONTH(jt.tanggal) = :bulan AND YEAR(jt.tanggal) = :tahun
-        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id AND p.status_bayar = 'lunas'
+        -- INNER JOIN: hanya film yang tayang di periode ini
+        JOIN jadwal_tayang jt ON jt.film_id = f.id
+            AND MONTH(jt.tanggal) = :bulan
+            AND YEAR(jt.tanggal)  = :tahun
+        LEFT JOIN pemesanan p ON p.jadwal_id = jt.id
+            AND p.status_bayar = 'lunas'
         LEFT JOIN detail_pemesanan dp ON dp.pemesanan_id = p.id
         GROUP BY f.id, f.judul
         ORDER BY tiket_terjual DESC
         LIMIT :limit OFFSET :offset
-    """), {"limit": per_page, "offset": offset, "bulan": bulan, "tahun": tahun}).fetchall()
+    """), {"bulan": bulan, "tahun": tahun, "limit": per_page, "offset": offset}).fetchall()
 
     data = []
     for idx, r in enumerate(hasil, start=offset + 1):

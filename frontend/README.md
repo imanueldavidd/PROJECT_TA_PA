@@ -1,16 +1,109 @@
-# React + Vite
+# 🎬 Bioskop 7 — Sistem Pemesanan Tiket Bioskop
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplikasi web pemesanan tiket bioskop dengan fitur lengkap untuk
+Customer, Karyawan, dan Manajer.
 
-Currently, two official plugins are available:
+## 🛠️ Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Backend**  : Python FastAPI + MySQL (TiDB Cloud)
+- **Frontend** : React (Vite) + Tailwind CSS
+- **Database** : TiDB Cloud (MySQL-compatible)
+- **Storage**  : Cloudinary (gambar poster & banner)
+- **Payment**  : Midtrans Snap
+- **Auth**     : JWT + bcrypt
 
-## React Compiler
+## 📋 Prasyarat
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Pastikan sudah terinstall:
+- Python 3.10+
+- Node.js 18+
+- Git
 
-## Expanding the ESLint configuration
+## 🚀 Cara Menjalankan (Development)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 1. Clone Repository
+
+git clone https://github.com/USERNAME/NAMA_REPO.git
+cd NAMA_REPO/bioskop-app
+
+### 2. Setup Backend
+
+cd backend
+
+# Buat virtual environment
+python -m venv .venv
+
+# Aktifkan venv
+# Windows:
+.\.venv\Scripts\Activate.ps1
+# Mac/Linux:
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Buat file .env dari template
+copy .env.example .env   # Windows
+cp .env.example .env     # Mac/Linux
+
+# Isi semua nilai di file .env
+# (DB, JWT, Email, Midtrans, Cloudinary)
+
+# Jalankan server
+uvicorn app.main:app --reload
+
+### 3. Setup Frontend
+
+cd frontend
+
+# Install dependencies
+npm install
+
+# Buat file .env dari template
+copy .env.example .env   # Windows
+cp .env.example .env     # Mac/Linux
+
+# Isi nilai di file .env
+# VITE_API_BASE_URL=http://localhost:8000
+# VITE_MIDTRANS_CLIENT_KEY=...
+
+# Jalankan development server
+npm run dev
+
+### 4. Setup Database
+
+Jalankan SQL berikut di TiDB Cloud SQL Editor:
+Lihat file: backend/database.sql
+
+## 🌐 Akses Aplikasi
+
+- Frontend  : http://localhost:5173
+- Backend   : http://localhost:8000
+- API Docs  : http://localhost:8000/docs
+
+## 👤 Akun Default (Development)
+
+Buat akun staff via SQL setelah setup database.
+Lihat panduan di backend/database.sql
+
+## 📁 Struktur Folder
+
+bioskop-app/
+├── backend/
+│   ├── app/
+│   │   ├── routers/      ← endpoint API
+│   │   ├── main.py
+│   │   ├── database.py
+│   │   └── dependencies.py
+│   ├── .env.example      ← template env (isi & rename jadi .env)
+│   └── requirements.txt
+└── frontend/
+    ├── src/
+    │   ├── pages/
+    │   │   ├── customer/
+    │   │   ├── karyawan/
+    │   │   └── manajer/
+    │   ├── components/
+    │   └── services/
+    ├── .env.example      ← template env
+    └── package.json

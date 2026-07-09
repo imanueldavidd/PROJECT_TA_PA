@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from app.database import get_db
 from app.dependencies import verify_token
+from app.cloudinary_helper import upload_gambar, hapus_gambar
 
 router = APIRouter(prefix="/api/film", tags=["Film"])
 
@@ -77,7 +78,7 @@ def get_film_list(
 
 
 # ── POST: Tambah film baru (dengan upload poster) ─────────
-@router.post("", status_code=status.HTTP_201_CREATED, summary="Tambah film baru")
+@router.post("", status_code=201)
 async def tambah_film(
     judul:        str  = Form(...),
     sinopsis:     str  = Form(""),
@@ -90,10 +91,11 @@ async def tambah_film(
     db: Session = Depends(get_db),
     _: dict = Depends(verify_token)
 ):
-    # Upload poster jika ada
+    
     poster_url = None
     if poster and poster.filename:
-        poster_url = simpan_poster(poster)
+        # Upload ke Cloudinary, simpan di folder bioskop/poster
+        poster_url = await upload_gambar(poster, folder="bioskop/poster")
 
     db.execute(text("""
         INSERT INTO film (judul, genre, durasi_menit, rating, sinopsis, poster_url, status)
@@ -137,12 +139,10 @@ async def update_film(
     # Poster baru jika diunggah, kalau tidak pakai yang lama
     poster_url = film.poster_url
     if poster and poster.filename:
-        # Hapus poster lama dari disk
-        if film.poster_url:
-            path_lama = film.poster_url.lstrip("/")
-            if os.path.exists(path_lama):
-                os.remove(path_lama)
-        poster_url = simpan_poster(poster)
+        # Hapus poster lama dari Cloudinary
+        hapus_gambar(film.poster_url)
+        # Upload poster baru
+        poster_url = await upload_gambar(poster, folder="bioskop/poster")
 
     db.execute(text("""
         UPDATE film
@@ -170,7 +170,7 @@ async def update_film(
 
 
 # ── DELETE: Hapus film ────────────────────────────────────
-@router.delete("/{film_id}", summary="Hapus film")
+@router.delete("/{film_id}")
 def hapus_film(
     film_id: int,
     db: Session = Depends(get_db),
@@ -188,18 +188,11 @@ def hapus_film(
         {"id": film_id}
     ).fetchone()
     if punya_jadwal:
-        raise HTTPException(
-            status_code=400,
-            detail="Film tidak bisa dihapus karena masih punya jadwal tayang!"
-        )
+        raise HTTPException(status_code=400, detail="Film masih punya jadwal tayang!")
 
     # Hapus poster dari disk
-    if film.poster_url:
-        path_file = film.poster_url.lstrip("/")
-        if os.path.exists(path_file):
-            os.remove(path_file)
+    hapus_gambar(film.poster_url)
 
     db.execute(text("DELETE FROM film WHERE id = :id"), {"id": film_id})
     db.commit()
-
     return {"message": "Film berhasil dihapus"}
