@@ -4,17 +4,22 @@
 import os
 import random
 import string
+import re
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from passlib.context import CryptContext
 from jose import jwt
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator # 💡 import field_validator
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 
 from app.database import get_db
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/customer/auth", tags=["Customer Auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -35,10 +40,32 @@ conf = ConnectionConfig(
 
 # ── Schema ────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
-    nama:       str
-    email:      EmailStr
-    password:   str
-    password2:  str
+    nama:      str
+    email:     EmailStr
+    password:  str
+    password2: str
+
+    @field_validator('nama')
+    @classmethod
+    def nama_valid(cls, v):
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError('Nama minimal 2 karakter')
+        if len(v) > 100:
+            raise ValueError('Nama maksimal 100 karakter')
+        # Cegah HTML/script injection
+        if re.search(r'[<>"\']', v):
+            raise ValueError('Nama mengandung karakter tidak valid')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def password_kuat(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password minimal 6 karakter')
+        if len(v) > 100:
+            raise ValueError('Password terlalu panjang')
+        return v
 
 class VerifikasiOTPRequest(BaseModel):
     email: EmailStr
@@ -151,19 +178,10 @@ async def register(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    if len(body.nama.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Nama minimal 2 karakter!")
-    if len(body.password) < 6:
-        raise HTTPException(status_code=400, detail="Password minimal 6 karakter!")
+    # Validasi panjang nama & password sudah ditangani otomatis oleh Pydantic (RegisterRequest)
     if body.password != body.password2:
         raise HTTPException(status_code=400, detail="Password tidak cocok!")
     if db.execute(text("SELECT id FROM pelanggan WHERE email = :e"), {"e": body.email}).fetchone():
-        raise HTTPException(status_code=400, detail="Email sudah terdaftar!")
-
-    # Cek email sudah terdaftar
-    if db.execute(
-        text("SELECT id FROM pelanggan WHERE email = :e"), {"e": body.email}
-    ).fetchone():
         raise HTTPException(status_code=400, detail="Email sudah terdaftar!")
 
     # Cek nama sudah dipakai
@@ -212,7 +230,6 @@ def verifikasi_otp(body: VerifikasiOTPRequest, db: Session = Depends(get_db)):
     # Cek expired
     now = datetime.now(timezone.utc)
     expired_at = pending.expired_at
-    # Handle timezone-aware/naive
     if expired_at.tzinfo is None:
         from datetime import timezone as tz
         expired_at = expired_at.replace(tzinfo=tz.utc)
@@ -263,16 +280,21 @@ async def kirim_ulang_otp(
 
 # ── POST: Login ───────────────────────────────────────────
 @router.post("/login")
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/15minutes")   # 1. Batasi maksimal 5x login per 15 menit per IP
+def login(
+    request: Request,            # 2. Wajib ada parameter request ini!
+    body: LoginRequest, 
+    db: Session = Depends(get_db)
+):
     p = db.execute(text("""
-    SELECT * FROM pelanggan
-    WHERE (nama = :u OR email = :u) AND is_aktif = 1
-"""),
-    {"u": body.username}    # ← ganti "e" → "u", body.email → body.username
-).fetchone()
+        SELECT * FROM pelanggan
+        WHERE (nama = :u OR email = :u) AND is_aktif = 1
+    """),
+        {"u": body.username}
+    ).fetchone()
 
     if not p or not pwd_context.verify(body.password, p.password):
-        raise HTTPException(status_code=401, detail="Email atau password salah")
+        raise HTTPException(status_code=401, detail="Email/Username atau password salah")
 
     token = buat_token({"sub": str(p.id), "email": p.email, "nama": p.nama, "role": "customer"})
 
@@ -288,8 +310,6 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 # ── GET: Profil customer ──────────────────────────────────
 @router.get("/profil")
 def get_profil(db: Session = Depends(get_db), current_user: dict = Depends(lambda: None)):
-    # Dependency verify_customer_token diimport dari customer.py
-    # Di sini kita buat endpoint-nya, dependency-nya dipasang di main
     pass
 
 # ── POST: Minta OTP reset password ───────────────────────
@@ -299,22 +319,17 @@ async def lupa_password(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    # Cek email terdaftar
     user = db.execute(
         text("SELECT id, nama FROM pelanggan WHERE email = :e AND is_aktif = 1"),
         {"e": body.email}
     ).fetchone()
 
     if not user:
-        # Demi keamanan, jangan kasih tahu kalau email tidak terdaftar
-        # (mencegah orang lain menebak-nebak email customer)
         return {"message": "Jika email terdaftar, kode OTP telah dikirim."}
 
-    # Generate OTP
     otp     = generate_otp()
     expired = datetime.now(timezone.utc) + timedelta(minutes=10)
 
-    # Hapus OTP reset lama untuk email ini (kalau ada)
     db.execute(text("DELETE FROM otp_reset_password WHERE email = :e"), {"e": body.email})
     db.execute(text("""
         INSERT INTO otp_reset_password (email, otp_code, expired_at)
@@ -332,7 +347,6 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     if len(body.password_baru) < 6:
         raise HTTPException(status_code=400, detail="Password minimal 6 karakter!")
 
-    # Cek OTP
     pending = db.execute(text("""
         SELECT * FROM otp_reset_password
         WHERE email = :email AND otp_code = :otp
@@ -341,7 +355,6 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     if not pending:
         raise HTTPException(status_code=400, detail="Kode OTP salah!")
 
-    # Cek expired
     now = datetime.now(timezone.utc)
     expired_at = pending.expired_at
     if expired_at.tzinfo is None:
@@ -352,7 +365,6 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
         db.commit()
         raise HTTPException(status_code=400, detail="Kode OTP sudah kadaluarsa! Minta ulang.")
 
-    # Update password
     hash_baru = pwd_context.hash(body.password_baru)
     db.execute(
         text("UPDATE pelanggan SET password = :pw WHERE email = :e"),

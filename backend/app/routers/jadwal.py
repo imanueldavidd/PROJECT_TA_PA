@@ -1,10 +1,11 @@
 # routers/jadwal.py
 # Endpoint CRUD untuk Kelola Jadwal Tayang
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from datetime import date
 
@@ -29,6 +30,34 @@ class JadwalUpdate(BaseModel):
     tanggal: Optional[date]   = None
     jam_tayang: Optional[str] = None
     harga_tiket: Optional[float] = None
+
+class RegisterRequest(BaseModel):
+    nama:      str
+    email:     EmailStr
+    password:  str
+    password2: str
+
+    @field_validator('nama')
+    @classmethod
+    def nama_valid(cls, v):
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError('Nama minimal 2 karakter')
+        if len(v) > 100:
+            raise ValueError('Nama maksimal 100 karakter')
+        # Cegah HTML/script injection
+        if re.search(r'[<>"\']', v):
+            raise ValueError('Nama mengandung karakter tidak valid')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def password_kuat(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password minimal 6 karakter')
+        if len(v) > 100:
+            raise ValueError('Password terlalu panjang')
+        return v
 
 
 # ── GET: Semua jadwal berdasarkan tanggal (+ filter opsional) ──

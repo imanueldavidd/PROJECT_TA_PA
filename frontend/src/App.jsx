@@ -16,6 +16,8 @@ import ETicket          from './pages/customer/ETicket'
 import RiwayatPesanan   from './pages/customer/RiwayatPesanan'
 import ProfilCustomer  from './pages/customer/ProfilCustomer'
 import LupaPassword from './pages/customer/LupaPassword'
+import { useEffect } from 'react'
+import { mulaiAutoLogout, hapusAutoLogout } from './utils/autoLogout'
 
 function PrivateRoute({ children, allowedRole }) {
   const token = localStorage.getItem('access_token')
@@ -32,6 +34,18 @@ function CustomerRoute({ children }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    const customerToken = localStorage.getItem('customer_token')
+    const staffToken    = localStorage.getItem('access_token')
+
+    if (customerToken) {
+      mulaiAutoLogout('customer')
+    } else if (staffToken) {
+      mulaiAutoLogout('staff')
+    }
+
+    return () => hapusAutoLogout()
+  }, [])
   return (
     <BrowserRouter>
       <Routes>

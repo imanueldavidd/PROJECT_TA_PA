@@ -1,10 +1,10 @@
 # routers/staff.py
 # Kelola Akun Staff oleh Manajer — CRUD + reset password
-
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import Optional
 from passlib.context import CryptContext
 
@@ -37,6 +37,34 @@ class StaffUpdateStatus(BaseModel):
 
 class ResetPassword(BaseModel):
     password_baru: str = Field(..., min_length=6)
+
+class RegisterRequest(BaseModel):
+    nama:      str
+    email:     EmailStr
+    password:  str
+    password2: str
+
+    @field_validator('nama')
+    @classmethod
+    def nama_valid(cls, v):
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError('Nama minimal 2 karakter')
+        if len(v) > 100:
+            raise ValueError('Nama maksimal 100 karakter')
+        # Cegah HTML/script injection
+        if re.search(r'[<>"\']', v):
+            raise ValueError('Nama mengandung karakter tidak valid')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def password_kuat(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password minimal 6 karakter')
+        if len(v) > 100:
+            raise ValueError('Password terlalu panjang')
+        return v
 
 
 # ── GET: Daftar staff (dengan search + pagination) ───────

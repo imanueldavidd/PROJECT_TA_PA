@@ -2,12 +2,13 @@
 # Endpoint untuk Customer — film, jadwal, kursi, booking, profil, riwayat
 
 import hmac, hashlib, json, os, uuid
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import List, Optional
 from jose import jwt, JWTError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -53,6 +54,34 @@ class UpdateProfil(BaseModel):
 class RatingCreate(BaseModel):
     bintang: int = Field(..., ge=1, le=5)
     ulasan:  str = ""
+
+class RegisterRequest(BaseModel):
+    nama:      str
+    email:     EmailStr
+    password:  str
+    password2: str
+
+    @field_validator('nama')
+    @classmethod
+    def nama_valid(cls, v):
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError('Nama minimal 2 karakter')
+        if len(v) > 100:
+            raise ValueError('Nama maksimal 100 karakter')
+        # Cegah HTML/script injection
+        if re.search(r'[<>"\']', v):
+            raise ValueError('Nama mengandung karakter tidak valid')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def password_kuat(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password minimal 6 karakter')
+        if len(v) > 100:
+            raise ValueError('Password terlalu panjang')
+        return v
 
 
 # ── GET: Semua film (sedang tayang & segera) ──────────────

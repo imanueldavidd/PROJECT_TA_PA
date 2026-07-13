@@ -6,27 +6,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 # Baris di bawah ini diperbaiki agar meng-import auth DAN dashboard sekaligus
 from app.routers import auth, dashboard, jadwal, tiket, film, laporan, dashboard_manajer, staff, customer_auth, customer, banner
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request
 import os
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="API Pemesanan Tiket Bioskop",
     description="Backend sistem pemesanan tiket bioskop",
     version="1.0.0",
     redirect_slashes=False
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS Pengaturan Gerbang Akses Frontend ──────────────────
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173"  # default untuk development
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],  # Mengizinkan semua perintah (GET, POST, dll)
-    allow_headers=["*"],  # Mengizinkan semua headers info
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Serve folder uploads sebagai file statis

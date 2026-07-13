@@ -4,14 +4,20 @@
 import os
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request # 💡 1. Tambahkan Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from passlib.context import CryptContext
 from jose import jwt
 
+# 💡 2. Import slowapi untuk Rate Limiting
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from app.database import get_db
 from app.models import LoginStafRequest, LoginResponse
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/auth", tags=["Autentikasi"])
 
@@ -39,7 +45,12 @@ def buat_access_token(data: dict) -> str:
     response_model=LoginResponse,
     summary="Login untuk Karyawan dan Manajer"
 )
-def login_staf(request: LoginStafRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/15minutes")   # 👈 3. Tambahkan decorator batasan 5x per 15 menit per IP
+def login_staf(
+    request: Request,            # 👈 4. Wajib ada parameter request di baris pertama
+    request_body: LoginStafRequest, # 💡 Ubah nama variabel request_body agar tidak bentrok dengan parameter `request` FastAPI
+    db: Session = Depends(get_db)
+):
     """
     Menerima username & password.
     - Cek user di tabel pengguna_staf
@@ -50,7 +61,7 @@ def login_staf(request: LoginStafRequest, db: Session = Depends(get_db)):
     # 1. Cari user berdasarkan username di database
     hasil = db.execute(
         text("SELECT * FROM pengguna_staf WHERE username = :username AND is_aktif = 1"),
-        {"username": request.username}
+        {"username": request_body.username}
     ).fetchone()
 
     # 2. Jika user tidak ditemukan → tolak (pesan sengaja dibuat umum agar tidak bocor info)
@@ -61,7 +72,7 @@ def login_staf(request: LoginStafRequest, db: Session = Depends(get_db)):
         )
 
     # 3. Verifikasi password yang dikirim dengan hash di database
-    if not pwd_context.verify(request.password, hasil.password):
+    if not pwd_context.verify(request_body.password, hasil.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username atau password salah"

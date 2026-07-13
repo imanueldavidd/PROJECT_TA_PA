@@ -1,13 +1,16 @@
-// pages/customer/LoginCustomer.jsx
-
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom' 
 import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 export default function LoginCustomer() {
   const navigate = useNavigate()
+  
+  // 🔻 DIPINDAHKAN KE DALAM KOMPONEN 🔻
+  const location = useLocation()
+  const sessionTimeout = new URLSearchParams(location.search).get('reason') === 'timeout'
+
   const [form,    setForm]    = useState({ username: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -31,7 +34,7 @@ export default function LoginCustomer() {
       localStorage.setItem('customer_id',    res.data.user_id)
       navigate('/')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login gagal. Coba lagi.')
+      setError(err.response?.data?.detail || 'Terlalu banyak percobaan gagal. Silakan tunggu 15 menit sebelum mencoba kembali.')
     } finally {
       setLoading(false)
     }
@@ -55,6 +58,15 @@ export default function LoginCustomer() {
                         rounded-2xl p-6 sm:p-8 shadow-2xl">
           <h2 className="text-white font-bold text-xl mb-6">Login</h2>
 
+          {/* 🔻 TARUH NOTIFIKASI SESSION TIMEOUT DI SINI 🔻 */}
+          {sessionTimeout && (
+            <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/40
+                            text-yellow-300 rounded-xl text-sm text-center">
+              ⏰ Sesi kamu telah habis karena tidak aktif. Silakan login kembali.
+            </div>
+          )}
+
+          {/* Pesan Error Login (jika ada) */}
           {error && (
             <div className="mb-4 p-3 bg-red-500/20 border border-red-500/40
                             text-red-300 rounded-xl text-sm">
@@ -82,7 +94,12 @@ export default function LoginCustomer() {
 
             {/* Password */}
             <div>
-              <label className="block text-sm text-gray-300 mb-1.5">Password</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm text-gray-300">Password</label>
+                <Link to="/lupa-password" className="text-xs text-blue-400 hover:text-blue-300 transition">
+                  Lupa Password?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
@@ -102,18 +119,6 @@ export default function LoginCustomer() {
                 >
                   {showPw ? '🙈' : '👁️'}
                 </button>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm text-gray-300">Password</label>
-                <Link to="/lupa-password" className="text-xs text-blue-400 hover:text-blue-300 transition">
-                  Lupa Password?
-                </Link>
-              </div>
-              <div className="relative">
-                {/* ...input password tetap sama... */}
               </div>
             </div>
 

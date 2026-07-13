@@ -2,11 +2,15 @@
 // Halaman login untuk Karyawan dan Manajer
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom' // 💡 Ditambahkan useLocation di sini
 import api from '../services/api'
 
 export default function LoginStaff() {
   const navigate = useNavigate()
+
+  // 🔻 Ambil query parameter session timeout 🔻
+  const location = useLocation()
+  const sessionTimeout = new URLSearchParams(location.search).get('reason') === 'timeout'
 
   // State form
   const [form, setForm] = useState({ username: '', password: '' })
@@ -69,7 +73,15 @@ export default function LoginStaff() {
         <div className="bg-gray-900 rounded-2xl shadow-xl p-8 border border-gray-800">
           <h2 className="text-xl font-semibold text-white mb-6">Login Staff</h2>
 
-          {/* Pesan Error */}
+          {/* 🔻 Pesan Session Timeout (Kuning) 🔻 */}
+          {sessionTimeout && (
+            <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/40
+                            text-yellow-300 rounded-xl text-sm text-center">
+              ⏰ Sesi kamu telah habis karena tidak aktif. Silakan login kembali.
+            </div>
+          )}
+
+          {/* Pesan Error Login (Merah) */}
           {error && (
             <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
               {error}
