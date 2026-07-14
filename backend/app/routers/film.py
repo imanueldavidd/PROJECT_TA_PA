@@ -1,9 +1,6 @@
 # routers/film.py
 # CRUD Film — tambah, edit, hapus, list, upload poster
 
-import os
-import uuid
-import shutil
 from typing import Optional
 from datetime import date
 
@@ -18,11 +15,6 @@ from app.cloudinary_helper import upload_gambar, hapus_gambar
 router = APIRouter(prefix="/api/film", tags=["Film"])
 
 # Folder penyimpanan poster (buat otomatis kalau belum ada)
-UPLOAD_DIR = "uploads/poster"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# Ekstensi yang diizinkan
-ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 # ── Helper: hitung status otomatis ────────────────────────
@@ -44,23 +36,6 @@ def hitung_status(tanggal_mulai, tanggal_selesai) -> str:
         return 'selesai'
     else:
         return 'tayang'
-
-
-# ── Helper: simpan file poster ────────────────────────────
-def simpan_poster(file: UploadFile) -> str:
-    """Simpan file poster ke disk, return URL relatif"""
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXT:
-        raise HTTPException(status_code=400, detail="Format file tidak didukung. Gunakan JPG/PNG.")
-
-    # Nama file unik
-    nama_file = f"{uuid.uuid4().hex}{ext}"
-    path_file  = os.path.join(UPLOAD_DIR, nama_file)
-
-    with open(path_file, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    return f"/uploads/poster/{nama_file}"
 
 
 # ── GET: Daftar semua film ────────────────────────────────

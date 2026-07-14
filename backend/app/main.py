@@ -37,9 +37,6 @@ app.add_middleware(
 )
 
 # Serve folder uploads sebagai file statis
-# Poster bisa diakses via: http://localhost:8000/uploads/poster/namafile.jpg
-os.makedirs("uploads/poster", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ── Daftarkan semua router ────────────────────────────────
 app.include_router(auth.router)
