@@ -10,14 +10,14 @@
   },
   "builds": [
     {
-      "src": "backend/index.py",
+      "src": "backend/main.py",
       "use": "@vercel/python"
     }
   ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/main.py"
     },
     {
       "source": "/(.*)",
