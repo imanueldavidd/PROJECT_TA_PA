@@ -5,12 +5,12 @@
       "framework": "vite"
     },
     "backend": {
-      "root": "backend"
-    }
-  },
-  "functions": {
-    "backend/main.py": {
-      "runtime": "vercel-python@0.3.0"
+      "root": "backend",
+      "functions": {
+        "main.py": {
+          "runtime": "vercel-python@0.3.0"
+        }
+      }
     }
   },
   "rewrites": [
