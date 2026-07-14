@@ -5,7 +5,7 @@ import hmac, hashlib, json, os, uuid
 import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel, EmailStr, field_validator
@@ -13,6 +13,7 @@ from typing import List, Optional
 from jose import jwt, JWTError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import Field
+from app.routers.customer_auth import conf, kirim_email_tiket
 
 from app.database import get_db
 
@@ -84,32 +85,71 @@ class RegisterRequest(BaseModel):
         return v
 
 
-# ── GET: Semua film (sedang tayang & segera) ──────────────
+# ── GET: Semua film (status otomatis dari tanggal) ────────
+from typing import Optional
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from fastapi import Depends
+
 @router.get("/films")
+@router.get("/film")
 def get_films(
     status_film: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    if status_film:
-        hasil = db.execute(
-            text("SELECT * FROM film WHERE status = :s ORDER BY dibuat_pada DESC"),
-            {"s": status_film}
-        ).fetchall()
-    else:
-        hasil = db.execute(
-            text("SELECT * FROM film WHERE status IN ('tayang','segera') ORDER BY FIELD(status,'tayang','segera'), dibuat_pada DESC")
-        ).fetchall()
+    # 1. Definisikan SELECT & CASE statement sebagai base_query
+    base_query = """
+        SELECT *,
+            CASE
+                WHEN tanggal_mulai IS NULL THEN 'segera'
+                WHEN CURDATE() < tanggal_mulai THEN 'segera'
+                WHEN tanggal_selesai IS NOT NULL
+                     AND CURDATE() > tanggal_selesai THEN 'selesai'
+                ELSE 'tayang'
+            END AS status_otomatis
+        FROM film
+    """
 
+    # 2. Tambahkan kondisi HAVING dan ORDER BY sesuai status_film
+    if status_film == 'tayang':
+        query = base_query + """
+            HAVING status_otomatis = 'tayang'
+            ORDER BY tanggal_mulai DESC
+        """
+    elif status_film == 'segera':
+        query = base_query + """
+            HAVING status_otomatis = 'segera'
+            ORDER BY tanggal_mulai ASC
+        """
+    elif status_film: # jika status_film bernilai selain 'tayang' / 'segera' (misal 'selesai')
+        query = base_query + """
+            HAVING status_otomatis = :status_film
+            ORDER BY tanggal_mulai DESC
+        """
+    else: # Jika status_film tidak dikirim (dapat semua film aktif)
+        query = base_query + """
+            HAVING status_otomatis IN ('tayang', 'segera')
+            ORDER BY FIELD(status_otomatis, 'tayang', 'segera'), dibuat_pada DESC
+        """
+
+    # 3. Eksekusi query
+    params = {"status_film": status_film} if status_film else {}
+    hasil = db.execute(text(query), params).fetchall()
+
+    # 4. Return data JSON (sesuaikan property r dengan nama kolom DB: tanggal_mulai & tanggal_selesai)
     return [
         {
-            "id":           r.id,
-            "judul":        r.judul,
-            "genre":        r.genre,
-            "durasi_menit": r.durasi_menit,
-            "rating":       r.rating,
-            "sinopsis":     r.sinopsis,
-            "poster_url":   r.poster_url,
-            "status":       r.status,
+            "id":                     r.id,
+            "judul":                 r.judul,
+            "genre":                 r.genre,
+            "durasi_menit":          r.durasi_menit,
+            "rating":                r.rating,
+            "sinopsis":              r.sinopsis,
+            "poster_url":            r.poster_url,
+            "trailer_url":           r.trailer_url,
+            "tanggal_mulai":  str(r.tanggal_mulai) if r.tanggal_mulai else None,       # Akses r.tanggal_mulai
+            "tanggal_selesai": str(r.tanggal_selesai) if r.tanggal_selesai else None, # Akses r.tanggal_selesai
+            "status":                r.status_otomatis,
         }
         for r in hasil
     ]
@@ -176,15 +216,21 @@ def get_kursi(jadwal_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Jadwal tidak ditemukan")
 
     hasil = db.execute(text("""
-        SELECT k.id, k.kode_kursi,
-            CASE WHEN dp.id IS NOT NULL THEN 'penuh' ELSE 'tersedia' END AS status
-        FROM kursi k
-        LEFT JOIN detail_pemesanan dp ON dp.kursi_id = k.id
-        LEFT JOIN pemesanan p ON p.id = dp.pemesanan_id
-            AND p.jadwal_id = :jid AND p.status_bayar = 'lunas'
-        WHERE k.studio_id = :sid
-        ORDER BY k.kode_kursi
-    """), {"jid": jadwal_id, "sid": jadwal.studio_id}).fetchall()
+    SELECT
+        k.id,
+        k.kode_kursi,
+        CASE
+            WHEN dp.id IS NOT NULL THEN 'penuh'
+            ELSE 'tersedia'
+        END AS status
+    FROM kursi k
+    LEFT JOIN detail_pemesanan dp ON dp.kursi_id = k.id
+    LEFT JOIN pemesanan p ON p.id = dp.pemesanan_id
+        AND p.jadwal_id    = :jadwal_id      -- ← filter per jadwal!
+        AND p.status_bayar = 'lunas'
+    WHERE k.studio_id = :studio_id
+    ORDER BY k.kode_kursi
+"""), {"jadwal_id": jadwal_id, "studio_id": jadwal.studio_id}).fetchall()
 
     return [{"id": r.id, "kode_kursi": r.kode_kursi, "status": r.status} for r in hasil]
 
@@ -341,6 +387,7 @@ def buat_snap_token(
 @router.post("/booking/konfirmasi", status_code=201)
 def konfirmasi_booking(
     body: KonfirmasiBooking,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: dict = Depends(verify_customer_token)
 ):
@@ -382,7 +429,13 @@ def konfirmasi_booking(
 
     db.commit()
 
-    return {
+    # Ambil info email pelanggan untuk kirim email
+    pelanggan = db.execute(
+        text("SELECT nama, email FROM pelanggan WHERE id = :id"),
+        {"id": int(current_user["sub"])}
+    ).fetchone()
+
+    response_data = {
         "kode_booking": body.order_id,
         "judul_film":   jadwal.judul,
         "poster_url":   jadwal.poster_url,
@@ -392,6 +445,17 @@ def konfirmasi_booking(
         "total_harga":  total,
         "tiket":        tiket_list,
     }
+
+    # Kirim email konfirmasi di background jika data pelanggan ditemukan
+    if pelanggan:
+        background_tasks.add_task(
+            kirim_email_tiket,
+            pelanggan.email,
+            pelanggan.nama,
+            response_data
+        )
+
+    return response_data
 
 # ── GET: Detail satu pesanan + tiket QR ──────────────────
 @router.get("/riwayat/{pesanan_id}")

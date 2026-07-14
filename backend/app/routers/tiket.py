@@ -105,18 +105,21 @@ def get_kursi(
         raise HTTPException(status_code=404, detail="Jadwal tidak ditemukan")
 
     hasil = db.execute(text("""
-        SELECT
-            k.id,
-            k.kode_kursi,
-            CASE WHEN dp.id IS NOT NULL THEN 'penuh' ELSE 'tersedia' END AS status
-        FROM kursi k
-        LEFT JOIN detail_pemesanan dp ON dp.kursi_id = k.id
-        LEFT JOIN pemesanan p ON p.id = dp.pemesanan_id
-            AND p.jadwal_id    = :jadwal_id
-            AND p.status_bayar = 'lunas'
-        WHERE k.studio_id = :studio_id
-        ORDER BY k.kode_kursi
-    """), {"jadwal_id": jadwal_id, "studio_id": jadwal.studio_id}).fetchall()
+    SELECT
+        k.id,
+        k.kode_kursi,
+        CASE
+            WHEN dp.id IS NOT NULL THEN 'penuh'
+            ELSE 'tersedia'
+        END AS status
+    FROM kursi k
+    LEFT JOIN detail_pemesanan dp ON dp.kursi_id = k.id
+    LEFT JOIN pemesanan p ON p.id = dp.pemesanan_id
+        AND p.jadwal_id    = :jadwal_id      -- ← filter per jadwal!
+        AND p.status_bayar = 'lunas'
+    WHERE k.studio_id = :studio_id
+    ORDER BY k.kode_kursi
+"""), {"jadwal_id": jadwal_id, "studio_id": jadwal.studio_id}).fetchall()
 
     return [{"id": r.id, "kode_kursi": r.kode_kursi, "status": r.status} for r in hasil]
 

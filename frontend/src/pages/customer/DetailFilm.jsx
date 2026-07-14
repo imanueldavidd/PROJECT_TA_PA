@@ -1,5 +1,5 @@
 // pages/customer/DetailFilm.jsx
-// Detail film + pilih tanggal + pilih jam tayang
+// Detail film + pilih tanggal + pilih jam tayang + trailer YouTube
 
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
@@ -20,6 +20,43 @@ const fmtTanggal = (str) => {
     bulan:   BULAN[d.getMonth()],
     lengkap: `${HARI[d.getDay()]}, ${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}`
   }
+}
+
+// Helper ekstrak YouTube ID
+const getYoutubeId = (url) => {
+  if (!url) return null
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/]+)/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
+// Komponen Trailer
+function TrailerFilm({ trailerUrl }) {
+  const videoId = getYoutubeId(trailerUrl)
+  if (!videoId) return null
+
+  return (
+    <div className="mt-6">
+      <h3 className="font-bold text-white text-sm mb-3 flex items-center gap-2">
+        ▶ Trailer
+      </h3>
+      <div className="relative w-full rounded-2xl overflow-hidden bg-black"
+           style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+          title="Trailer Film"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        />
+      </div>
+    </div>
+  )
 }
 
 export default function DetailFilm() {
@@ -96,9 +133,9 @@ export default function DetailFilm() {
         <div className="flex flex-col lg:flex-row gap-8">
 
           {/* ── Kiri: Poster + Info Film ── */}
-          <div className="flex flex-row lg:flex-col gap-4 lg:gap-0 lg:w-48 shrink-0">
+          <div className="flex flex-row lg:flex-col gap-4 lg:gap-0 lg:w-72 shrink-0">
             {/* Poster */}
-            <div className="w-28 sm:w-36 lg:w-48 shrink-0">
+            <div className="w-28 sm:w-36 lg:w-full shrink-0">
               {film.poster_url ? (
                 <img src={`${API_BASE}${film.poster_url}`} alt={film.judul}
                      className="w-full rounded-2xl shadow-2xl"
@@ -129,17 +166,38 @@ export default function DetailFilm() {
                 )}
               </div>
 
-              {/* Bahasa & sinopsis — hanya desktop */}
+              {/* Sinopsis desktop */}
               {film.sinopsis && (
                 <div className="hidden lg:block mt-4">
                   <p className="text-xs text-gray-400 font-bold tracking-widest mb-1">SINOPSIS</p>
-                  <p className="text-gray-300 text-sm leading-relaxed line-clamp-6">
-                    {film.sinopsis}
-                  </p>
+                  <p className="text-gray-300 text-sm leading-relaxed line-clamp-6">{film.sinopsis}</p>
                 </div>
               )}
-            </div>
-          </div>
+
+              {/* Trailer — tampil di desktop (panel kiri) */}
+              {film.trailer_url && (
+                <div className="hidden lg:block">
+                  <TrailerFilm trailerUrl={film.trailer_url} />
+                </div>
+              )}
+
+              {/* ─── Di bagian mobile (di bawah poster) ─── */}
+              {film.sinopsis && (
+                <div className="lg:hidden mb-4 bg-white/5 rounded-2xl p-4">
+                  <p className="text-xs text-gray-400 font-bold tracking-widest mb-2">SINOPSIS</p>
+                  <p className="text-gray-300 text-sm leading-relaxed">{film.sinopsis}</p>
+                </div>
+              )}
+
+              {/* Trailer mobile */}
+              {film.trailer_url && (
+                <div className="lg:hidden mb-4">
+                  <TrailerFilm trailerUrl={film.trailer_url} />
+                </div>
+              )}
+              
+            </div> {/* <-- PENAMBAHAN PENUTUP INFO FILM DI SINI */}
+          </div> {/* <-- PENAMBAHAN PENUTUP KIRI (POSTER + INFO) DI SINI */}
 
           {/* ── Kanan: Pilih Jadwal ── */}
           <div className="flex-1">
@@ -159,7 +217,7 @@ export default function DetailFilm() {
                 <div className="bg-white/5 border border-yellow-500/30 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="bg-yellow-500 text-yellow-900 text-xs font-bold
-                                    px-2.5 py-1 rounded-full">
+                                     px-2.5 py-1 rounded-full">
                       SEGERA TAYANG
                     </span>
                   </div>
@@ -193,7 +251,7 @@ export default function DetailFilm() {
                   <button
                     onClick={() => navigate('/')}
                     className="mt-4 border border-white/20 text-gray-300
-                              hover:bg-white/10 px-6 py-2.5 rounded-xl text-sm transition"
+                               hover:bg-white/10 px-6 py-2.5 rounded-xl text-sm transition"
                   >
                     ← Kembali ke Beranda
                   </button>
@@ -244,7 +302,7 @@ export default function DetailFilm() {
                             onClick={() => !habis && setJamAktif(j.id)}
                             disabled={habis}
                             className={`px-5 py-2.5 rounded-xl border-2 text-sm font-bold
-                                       transition
+                                        transition
                               ${habis
                                 ? 'border-gray-700 bg-gray-800/50 text-gray-600 cursor-not-allowed'
                                 : aktif
@@ -271,7 +329,7 @@ export default function DetailFilm() {
                         {fmtTanggal(tanggalAktif).lengkap} • {jadwalDipilih.jam_tayang}
                       </p>
                       <p className="text-gray-400 mt-0.5">
-                        {jadwalDipilih.nama_studio} •
+                        {jadwalDipilih.nama_studio} • 
                         <span className="text-blue-400 font-semibold ml-1">
                           Rp {jadwalDipilih.harga_tiket.toLocaleString('id-ID')} / kursi
                         </span>
@@ -303,12 +361,13 @@ export default function DetailFilm() {
           </div>
         </div>
       </div>
-      {/* ─── TAMBAHKAN KODE BARU INI DI SINI ─── */}
+
+      {/* Rating & Ulasan Film */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <hr className="border-white/10 mb-8" /> {/* Garis pembatas tipis biar rapi */}
+        <hr className="border-white/10 mb-8" />
         <RatingFilm filmId={parseInt(id)} />
       </div>
-      {/* ─────────────────────────────────────── */}
+
     </div>
   )
 }

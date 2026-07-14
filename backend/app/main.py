@@ -17,7 +17,7 @@ app = FastAPI(
     title="API Pemesanan Tiket Bioskop",
     description="Backend sistem pemesanan tiket bioskop",
     version="1.0.0",
-    redirect_slashes=False
+    redirect_slashes=True
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

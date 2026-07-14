@@ -6,6 +6,20 @@ import api from '../../services/api'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
 
+const getYoutubeId = (url) => {
+  if (!url) return null
+  const patterns = [
+    /youtube\.com\/watch\?v=([^&]+)/,
+    /youtu\.be\/([^?]+)/,
+    /youtube\.com\/embed\/([^?]+)/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
 // ── Helper: URL poster ────────────────────────────────────
 const posterSrc = (url) => {
   if (!url) return null
@@ -15,8 +29,18 @@ const posterSrc = (url) => {
 
 // ── Rating options ────────────────────────────────────────
 const RATING_OPTIONS = ['SU (Semua Umur)', 'G', 'PG', 'PG-13', 'R', '17+', '21+']
-const STATUS_OPTIONS  = ['segera', 'tayang']
 
+// ── Helper hitung status otomatis dari tanggal ────────────
+const hitungStatus = (mulai, selesai) => {
+  if (!mulai) return 'segera'
+  const today = new Date(); today.setHours(0,0,0,0)
+  const tglMulai = new Date(mulai + 'T00:00:00')
+  const tglSelesai = selesai ? new Date(selesai + 'T00:00:00') : null
+
+  if (today < tglMulai) return 'segera'
+  if (tglSelesai && today > tglSelesai) return 'selesai'
+  return 'tayang'
+}
 
 // ════════════════════════════════════════════════════════
 // Komponen: Form Tambah / Edit Film
@@ -25,14 +49,16 @@ function FormFilm({ filmEdit, onBatal, onSimpan }) {
   const isEdit = !!filmEdit
 
   const [form, setForm] = useState({
-    judul:        filmEdit?.judul        || '',
-    sinopsis:     filmEdit?.sinopsis     || '',
-    durasi_menit: filmEdit?.durasi_menit || 120,
-    rating:       filmEdit?.rating       || 'SU (Semua Umur)',
-    genre:        filmEdit?.genre        || '',
-    bahasa:       filmEdit?.bahasa       || 'Indonesia',
-    aktor:        filmEdit?.aktor        || '',
-    status_film:  filmEdit?.status       || 'segera',
+    judul:                  filmEdit?.judul        || '',
+    sinopsis:               filmEdit?.sinopsis     || '',
+    durasi_menit:           filmEdit?.durasi_menit || 120,
+    rating:                 filmEdit?.rating       || 'SU (Semua Umur)',
+    genre:                  filmEdit?.genre        || '',
+    bahasa:                 filmEdit?.bahasa       || 'Indonesia',
+    aktor:                  filmEdit?.aktor        || '',
+    trailer_url:            filmEdit?.trailer_url  || '',
+    tanggal_mulai:   filmEdit?.tanggal_mulai   || '',   // ✅ key disamakan
+    tanggal_selesai: filmEdit?.tanggal_selesai || '',   // ✅ key disamakan
   })
 
   const [posterFile,    setPosterFile]    = useState(null)   // File object
@@ -66,6 +92,9 @@ function FormFilm({ filmEdit, onBatal, onSimpan }) {
     setLoading(true)
     setError('')
 
+    // Hitung status secara otomatis sebelum dikirim
+    const statusOtomatis = hitungStatus(form.tanggal_mulai, form.tanggal_selesai)
+
     // Gunakan FormData karena ada file upload
     const fd = new FormData()
     fd.append('judul',        form.judul)
@@ -75,23 +104,24 @@ function FormFilm({ filmEdit, onBatal, onSimpan }) {
     fd.append('genre',        form.genre)
     fd.append('bahasa',       form.bahasa)
     fd.append('aktor',        form.aktor)
-    fd.append('status_film',  form.status_film)
+    fd.append('status_film',  statusOtomatis) // 
+    fd.append('trailer_url',  form.trailer_url)
+    fd.append('tanggal_mulai',   form.tanggal_mulai   || '') // 
+    fd.append('tanggal_selesai', form.tanggal_selesai || '') // 
     if (posterFile) fd.append('poster', posterFile)
 
     try {
-  if (isEdit) {
-    await api.put(`/api/film/${filmEdit.id}`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-  } else {
-    // FIXED CORRECTION: Hapus tanda slash (/) setelah kata film
-    await api.post('/api/film', fd, { 
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-  }
-  onSimpan()
-} catch (err) {
-
+      if (isEdit) {
+        await api.put(`/api/film/${filmEdit.id}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+      } else {
+        await api.post('/api/film', fd, { 
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+      }
+      onSimpan()
+    } catch (err) {
       setError(err.response?.data?.detail || 'Gagal menyimpan film.')
     } finally {
       setLoading(false)
@@ -232,23 +262,35 @@ function FormFilm({ filmEdit, onBatal, onSimpan }) {
               />
             </div>
 
-            {/* Status (hanya tampil saat edit) */}
+            {/* Trailer URL */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
+                URL TRAILER
+              </label>
+              <input
+                name="trailer_url"
+                value={form.trailer_url}
+                onChange={handleChange}
+                placeholder="https://www.youtube.com/watch?v=xxxxx"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50
+                          focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+              {form.trailer_url && getYoutubeId(form.trailer_url) && (
+                <p className="text-green-600 text-xs mt-1">✅ URL trailer valid</p>
+              )}
+            </div>
+
+            {/* Status (Otomatis & Read-Only) */}
             {isEdit && (
               <div>
                 <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
                   STATUS TAYANG
                 </label>
-                <select
-                  name="status_film"
-                  value={form.status_film}
-                  onChange={handleChange}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50
-                             focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
-                >
-                  {STATUS_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                  ))}
-                </select>
+                <div className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-100 text-gray-600 font-medium">
+                  {hitungStatus(form.tanggal_mulai, form.tanggal_selesai) === 'segera' && '🕐 Segera'}
+                  {hitungStatus(form.tanggal_mulai, form.tanggal_selesai) === 'tayang' && '🎬 Sedang Tayang'}
+                  {hitungStatus(form.tanggal_mulai, form.tanggal_selesai) === 'selesai' && '✓ Selesai'}
+                </div>
               </div>
             )}
 
@@ -256,6 +298,56 @@ function FormFilm({ filmEdit, onBatal, onSimpan }) {
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                 {error}
+              </div>
+            )}
+          </div>
+
+          {/* Periode Tayang */}
+          <div>
+            <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
+              PERIODE TAYANG
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Mulai Tayang</label>
+                <input
+                  type="date"
+                  name="tanggal_mulai"
+                  value={form.tanggal_mulai}
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50
+                            focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Selesai Tayang</label>
+                <input
+                  type="date"
+                  name="tanggal_selesai"
+                  value={form.tanggal_selesai}
+                  min={form.tanggal_mulai}
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50
+                            focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                />
+              </div>
+            </div>
+
+            {/* Preview status otomatis */}
+            {form.tanggal_mulai && (
+              <div className="mt-2 px-3 py-2 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-500">
+                  Status otomatis:{' '}
+                  <strong className={
+                    new Date() < new Date(form.tanggal_mulai) ? 'text-yellow-600' :
+                    form.tanggal_selesai && new Date() > new Date(form.tanggal_selesai)
+                      ? 'text-gray-400' : 'text-green-600'
+                  }>
+                    {new Date() < new Date(form.tanggal_mulai) ? '🕐 Segera' :
+                    form.tanggal_selesai && new Date() > new Date(form.tanggal_selesai)
+                      ? '✓ Selesai' : '🎬 Sedang Tayang'}
+                  </strong>
+                </p>
               </div>
             )}
           </div>

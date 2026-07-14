@@ -171,6 +171,136 @@ async def kirim_email_reset(email: str, nama: str, otp: str):
     fm = FastMail(conf)
     await fm.send_message(message)
 
+async def kirim_email_tiket(
+    email: str,
+    nama: str,
+    data_pesanan: dict
+):
+    """Kirim email konfirmasi pembelian tiket"""
+
+    # Buat HTML untuk setiap tiket
+    tiket_html = ""
+    for t in data_pesanan["tiket"]:
+        tiket_html += f"""
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb;
+                    border-radius: 12px; padding: 16px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <p style="color: #6b7280; font-size: 11px; margin: 0 0 4px;
+                              text-transform: uppercase; letter-spacing: 1px;">KURSI</p>
+                    <p style="color: #1f2937; font-size: 24px; font-weight: 900;
+                              margin: 0; font-family: monospace;">{t['kursi']}</p>
+                </div>
+                <div style="text-align: right;">
+                    <p style="color: #6b7280; font-size: 11px; margin: 0 0 4px;
+                              text-transform: uppercase; letter-spacing: 1px;">ORDER ID</p>
+                    <p style="color: #374151; font-size: 12px; font-weight: bold;
+                              margin: 0; font-family: monospace;">{data_pesanan['kode_booking']}</p>
+                </div>
+            </div>
+        </div>
+        """
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto;">
+
+        <!-- Header -->
+        <div style="background: #1e3a5f; padding: 28px 24px;
+                    border-radius: 16px 16px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 22px;">🎬 BIOSKOP 7</h1>
+            <p style="color: #93c5fd; margin: 6px 0 0; font-size: 13px;">
+                Tiket Anda Sudah Siap!
+            </p>
+        </div>
+
+        <!-- Body -->
+        <div style="background: white; padding: 28px 24px;
+                    border-radius: 0 0 16px 16px; border: 1px solid #e5e7eb;
+                    border-top: none;">
+
+            <p style="color: #374151; font-size: 15px; margin: 0 0 20px;">
+                Halo <strong>{nama}</strong>! 👋<br>
+                Pembayaran tiket kamu telah <strong style="color: #16a34a;">dikonfirmasi</strong>.
+                Tunjukkan QR code di bawah kepada petugas saat masuk.
+            </p>
+
+            <!-- Info Film -->
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd;
+                        border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="color: #6b7280; font-size: 12px; padding: 4px 0;
+                                   text-transform: uppercase; letter-spacing: 0.5px; width: 40%;">
+                            Film
+                        </td>
+                        <td style="color: #1f2937; font-size: 13px; font-weight: bold; padding: 4px 0;">
+                            {data_pesanan['judul_film']}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6b7280; font-size: 12px; padding: 4px 0;
+                                   text-transform: uppercase; letter-spacing: 0.5px;">Studio</td>
+                        <td style="color: #1f2937; font-size: 13px; font-weight: bold; padding: 4px 0;">
+                            {data_pesanan['nama_studio']}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6b7280; font-size: 12px; padding: 4px 0;
+                                   text-transform: uppercase; letter-spacing: 0.5px;">Tanggal</td>
+                        <td style="color: #1f2937; font-size: 13px; font-weight: bold; padding: 4px 0;">
+                            {data_pesanan['tanggal']}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6b7280; font-size: 12px; padding: 4px 0;
+                                   text-transform: uppercase; letter-spacing: 0.5px;">Jam</td>
+                        <td style="color: #1f2937; font-size: 13px; font-weight: bold; padding: 4px 0;">
+                            {data_pesanan['jam_tayang']} WIB
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6b7280; font-size: 12px; padding: 4px 0;
+                                   text-transform: uppercase; letter-spacing: 0.5px;">Total</td>
+                        <td style="color: #2563eb; font-size: 15px; font-weight: 900; padding: 4px 0;">
+                            Rp {int(data_pesanan['total_harga']):,}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Tiket per kursi -->
+            <p style="color: #374151; font-size: 13px; font-weight: bold; margin: 0 0 12px;">
+                🎟 Detail Tiket ({len(data_pesanan['tiket'])} kursi)
+            </p>
+            {tiket_html}
+
+            <!-- Catatan -->
+            <div style="background: #fefce8; border: 1px solid #fde047;
+                        border-radius: 8px; padding: 12px; margin-top: 16px;">
+                <p style="color: #713f12; font-size: 12px; margin: 0;">
+                    ⚠️ Tunjukkan email ini atau cek halaman
+                    <strong>Riwayat Tiket</strong> di website untuk QR code.
+                    Hadir 15 menit sebelum film dimulai.
+                </p>
+            </div>
+
+            <p style="color: #9ca3af; font-size: 11px; text-align: center;
+                      margin: 20px 0 0;">
+                © 2026 Bioskop 7 — Nikmati pengalaman menonton terbaik
+            </p>
+        </div>
+    </div>
+    """
+
+    message = MessageSchema(
+        subject=f"✅ Tiket Berhasil — {data_pesanan['judul_film']} | Bioskop 7",
+        recipients=[email],
+        body=html,
+        subtype=MessageType.html
+    )
+    fm = FastMail(conf)
+    await fm.send_message(message)
+
 # ── POST: Register ────────────────────────────────────────
 @router.post("/register", status_code=201)
 async def register(
