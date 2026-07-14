@@ -5,7 +5,7 @@ import { useNavigate, Routes, Route } from 'react-router-dom'
 import SidebarLayout from '../components/SidebarLayout'
 import api from '../services/api'
 import LaporanManajer from './manajer/LaporanManajer'
-import Staff from './manajer/Staff'
+import Staff from './manajer/staff'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
 const posterSrc = (url) => {

@@ -1,4 +1,4 @@
-// pages/manajer/Staff.jsx
+// pages/manajer/staff.jsx
 // Kelola Akun Staff — tabel + tambah + edit role/status + reset password
 
 import { useState, useEffect, useCallback } from 'react'

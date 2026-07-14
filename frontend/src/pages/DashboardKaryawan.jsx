@@ -7,9 +7,9 @@ import api from '../services/api'
 
 import Jadwal  from './karyawan/Jadwal'
 import Tiket   from './karyawan/Tiket'
-import Film    from './karyawan/Film'
-import Laporan from './karyawan/Laporan'
-import Banner from './karyawan/Banner'
+import Film    from './karyawan/film'
+import Laporan from './karyawan/laporan'
+import Banner from './karyawan/banner'
 
 // ── Menu sidebar karyawan ─────────────────────────────────
 const MENU = [
