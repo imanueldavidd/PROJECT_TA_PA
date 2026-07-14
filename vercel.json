@@ -8,6 +8,11 @@
       "root": "backend"
     }
   },
+  "functions": {
+    "backend/main.py": {
+      "runtime": "vercel-python@0.3.0"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
