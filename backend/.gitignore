@@ -13,8 +13,6 @@ __pycache__/
 *.pyd
 .Python
 
-# Upload folder (gambar lokal)
-uploads/
 
 # Test files
 test_db.py

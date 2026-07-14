@@ -2,9 +2,6 @@
 # CRUD Banner untuk halaman landing page customer
 # Dikelola oleh Karyawan/Manajer, ditampilkan ke Customer
 
-import os
-import uuid
-import shutil
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
@@ -16,24 +13,6 @@ from app.dependencies import verify_token
 from app.cloudinary_helper import upload_gambar, hapus_gambar
 
 router = APIRouter(prefix="/api/banner", tags=["Banner"])
-
-# Folder penyimpanan gambar banner
-UPLOAD_DIR = "uploads/banner"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-
-
-# ── Helper: simpan file gambar ─────────────────────────
-def simpan_gambar(file: UploadFile) -> str:
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXT:
-        raise HTTPException(status_code=400, detail="Format file tidak didukung. Gunakan JPG/PNG/WebP.")
-    nama_file = f"{uuid.uuid4().hex}{ext}"
-    path_file = os.path.join(UPLOAD_DIR, nama_file)
-    with open(path_file, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return f"/uploads/banner/{nama_file}"
 
 
 # ── GET: Semua banner aktif (untuk landing page customer) ──
@@ -117,12 +96,13 @@ async def update_banner(
         raise HTTPException(status_code=404, detail="Banner tidak ditemukan")
 
     gambar_url = banner.gambar_url
+
     if gambar and gambar.filename:
-        # Hapus gambar lama
-        path_lama = banner.gambar_url.lstrip("/")
-        if os.path.exists(path_lama):
-            os.remove(path_lama)
-        gambar_url = simpan_gambar(gambar)
+        hapus_gambar(banner.gambar_url)
+        gambar_url = await upload_gambar(
+            gambar,
+            folder="bioskop/banner"
+        )
 
     db.execute(text("""
         UPDATE banner
