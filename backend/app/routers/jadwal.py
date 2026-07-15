@@ -202,9 +202,17 @@ def tambah_jadwal(
 
     # Ambil durasi film
     film = db.execute(
-        text("SELECT durasi_menit, judul FROM film WHERE id = :id"),
-        {"id": body.film_id}
-    ).fetchone()
+    text("""
+        SELECT
+            durasi_menit,
+            judul,
+            tanggal_mulai,
+            tanggal_selesai
+        FROM film
+        WHERE id = :id
+    """),
+    {"id": body.film_id}
+).fetchone()
     if not film:
         raise HTTPException(status_code=404, detail="Film tidak ditemukan")
     
