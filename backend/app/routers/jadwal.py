@@ -100,10 +100,24 @@ def get_film_list(
     db: Session = Depends(get_db),
     _: dict = Depends(verify_token)
 ):
-    hasil = db.execute(text(
-        "SELECT id, judul, durasi_menit FROM film ORDER BY judul"
-    )).fetchall()
-    return [{"id": r.id, "judul": r.judul, "durasi_menit": r.durasi_menit} for r in hasil]
+    hasil = db.execute(text("""
+        SELECT
+            id,
+            judul,
+            durasi_menit
+        FROM film
+        WHERE status = 'tayang'
+        ORDER BY judul
+    """)).fetchall()
+
+    return [
+        {
+            "id": r.id,
+            "judul": r.judul,
+            "durasi_menit": r.durasi_menit
+        }
+        for r in hasil
+    ]
 
 
 # ── GET: Studio list untuk dropdown ──────────────────────
