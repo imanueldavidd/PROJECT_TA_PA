@@ -61,7 +61,7 @@ def get_jadwal(
         FROM jadwal_tayang jt
         JOIN film   f ON f.id = jt.film_id
         JOIN studio s ON s.id = jt.studio_id
-        WHERE jt.tanggal = :tanggal
+        WHERE :tanggal BETWEEN jt.tanggal_mulai AND jt.tanggal_selesai
     """
     params = {"tanggal": tanggal}
 
