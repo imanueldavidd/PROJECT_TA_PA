@@ -1,5 +1,5 @@
 // pages/customer/DetailFilm.jsx
-// Detail film + pilih tanggal + pilih jam tayang + trailer YouTube
+// Detail film + pilih tanggal + pilih jam tayang + trailer YouTube (modal)
 
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
@@ -35,25 +35,38 @@ const getYoutubeId = (url) => {
   return null
 }
 
-// Komponen Trailer
-function TrailerFilm({ trailerUrl }) {
+// ── Modal Trailer ─────────────────────────────────────────
+function ModalTrailer({ trailerUrl, onClose }) {
   const videoId = getYoutubeId(trailerUrl)
   if (!videoId) return null
 
   return (
-    <div className="mt-6">
-      <h3 className="font-bold text-white text-sm mb-3 flex items-center gap-2">
-        ▶ Trailer
-      </h3>
-      <div className="relative w-full rounded-2xl overflow-hidden bg-black"
-           style={{ aspectRatio: '16/9' }}>
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
-          title="Trailer Film"
-          allowFullScreen
-          className="absolute inset-0 w-full h-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
+    <div
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm
+                 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 text-white text-3xl font-bold
+                     hover:text-gray-300 transition"
+        >
+          ✕
+        </button>
+        <div className="relative w-full rounded-2xl overflow-hidden bg-black"
+             style={{ aspectRatio: '16/9' }}>
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1`}
+            title="Trailer Film"
+            allowFullScreen
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        </div>
       </div>
     </div>
   )
@@ -68,12 +81,12 @@ export default function DetailFilm() {
   const [loading,      setLoading]      = useState(true)
   const [tanggalAktif, setTanggalAktif] = useState(null)
   const [jamAktif,     setJamAktif]     = useState(null)
+  const [showTrailer,  setShowTrailer]  = useState(false)
 
   useEffect(() => {
     axios.get(`${API_BASE}/api/customer/films/${id}`)
       .then(r => {
         setFilm(r.data)
-        // Set tanggal pertama sebagai default
         if (r.data.jadwal?.length > 0) {
           setTanggalAktif(r.data.jadwal[0].tanggal)
         }
@@ -82,7 +95,6 @@ export default function DetailFilm() {
       .finally(() => setLoading(false))
   }, [id])
 
-  // Kelompokkan jadwal per tanggal
   const jadwalPerTanggal = film?.jadwal?.reduce((acc, j) => {
     if (!acc[j.tanggal]) acc[j.tanggal] = []
     acc[j.tanggal].push(j)
@@ -90,11 +102,7 @@ export default function DetailFilm() {
   }, {}) ?? {}
 
   const tanggalList = Object.keys(jadwalPerTanggal).sort()
-
-  // Jam tayang untuk tanggal yang dipilih
   const jamList = tanggalAktif ? (jadwalPerTanggal[tanggalAktif] || []) : []
-
-  // Jadwal yang dipilih lengkap
   const jadwalDipilih = jamAktif ? jamList.find(j => j.id === jamAktif) : null
 
   const handlePilihKursi = () => {
@@ -134,16 +142,29 @@ export default function DetailFilm() {
 
           {/* ── Kiri: Poster + Info Film ── */}
           <div className="flex flex-row lg:flex-col gap-4 lg:gap-0 lg:w-72 shrink-0">
-            {/* Poster */}
-            <div className="w-28 sm:w-36 lg:w-full shrink-0">
+
+            {/* Poster + tombol trailer */}
+            <div className="w-28 sm:w-36 lg:w-full shrink-0 relative">
               {film.poster_url ? (
                 <img src={`${API_BASE}${film.poster_url}`} alt={film.judul}
-                     className="w-full rounded-2xl shadow-2xl"
-                     style={{ aspectRatio: '2/3', objectFit: 'cover' }} />
+                    className="w-full rounded-2xl shadow-2xl"
+                    style={{ aspectRatio: '2/3', objectFit: 'cover' }} />
               ) : (
                 <div className="w-full rounded-2xl bg-gray-800 flex items-center
                                 justify-center text-5xl"
-                     style={{ aspectRatio: '2/3' }}>🎬</div>
+                    style={{ aspectRatio: '2/3' }}>🎬</div>
+              )}
+
+              {film.trailer_url && (
+                <button
+                  onClick={() => setShowTrailer(true)}
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2
+                            bg-white/90 hover:bg-white text-gray-900 font-bold
+                            text-xs px-4 py-2 rounded-full flex items-center gap-1.5
+                            shadow-lg transition"
+                >
+                  ▶ Lihat Trailer
+                </button>
               )}
             </div>
 
@@ -174,46 +195,29 @@ export default function DetailFilm() {
                 </div>
               )}
 
-              {/* Trailer — tampil di desktop (panel kiri) */}
-              {film.trailer_url && (
-                <div className="hidden lg:block">
-                  <TrailerFilm trailerUrl={film.trailer_url} />
-                </div>
-              )}
-
-              {/* ─── Di bagian mobile (di bawah poster) ─── */}
+              {/* Sinopsis mobile */}
               {film.sinopsis && (
                 <div className="lg:hidden mb-4 bg-white/5 rounded-2xl p-4">
                   <p className="text-xs text-gray-400 font-bold tracking-widest mb-2">SINOPSIS</p>
                   <p className="text-gray-300 text-sm leading-relaxed">{film.sinopsis}</p>
                 </div>
               )}
-
-              {/* Trailer mobile */}
-              {film.trailer_url && (
-                <div className="lg:hidden mb-4">
-                  <TrailerFilm trailerUrl={film.trailer_url} />
-                </div>
-              )}
-              
-            </div> {/* <-- PENAMBAHAN PENUTUP INFO FILM DI SINI */}
-          </div> {/* <-- PENAMBAHAN PENUTUP KIRI (POSTER + INFO) DI SINI */}
+            </div>
+          </div>
 
           {/* ── Kanan: Pilih Jadwal ── */}
           <div className="flex-1">
 
-            {/* Sinopsis mobile */}
+            {/* Sinopsis mobile (duplikat sengaja disembunyikan di lg agar tidak dobel) */}
             {film.sinopsis && (
-              <div className="lg:hidden mb-6 bg-white/5 rounded-2xl p-4">
+              <div className="lg:hidden mb-6 bg-white/5 rounded-2xl p-4 hidden">
                 <p className="text-xs text-gray-400 font-bold tracking-widest mb-2">SINOPSIS</p>
                 <p className="text-gray-300 text-sm leading-relaxed">{film.sinopsis}</p>
               </div>
             )}
 
             {film.status === 'segera' || tanggalList.length === 0 ? (
-              /* Film belum tayang */
               <div className="space-y-4">
-                {/* Info film tetap tampil */}
                 <div className="bg-white/5 border border-yellow-500/30 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="bg-yellow-500 text-yellow-900 text-xs font-bold
@@ -241,7 +245,6 @@ export default function DetailFilm() {
                   )}
                 </div>
 
-                {/* Pesan: belum bisa dipesan */}
                 <div className="bg-white/5 rounded-2xl p-5 text-center">
                   <p className="text-3xl mb-2">🕐</p>
                   <p className="font-bold text-white mb-1">Belum Bisa Dipesan</p>
@@ -259,13 +262,10 @@ export default function DetailFilm() {
               </div>
             ) : (
               <>
-                {/* Step 1: Pilih Tanggal */}
                 <div className="mb-6">
                   <p className="text-xs text-gray-400 font-bold tracking-widest mb-3">
                     1. PILIH TANGGAL & WAKTU
                   </p>
-
-                  {/* Slider tanggal */}
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     {tanggalList.map((tgl) => {
                       const info   = fmtTanggal(tgl)
@@ -289,7 +289,6 @@ export default function DetailFilm() {
                   </div>
                 </div>
 
-                {/* Step 2: Pilih Jam */}
                 {tanggalAktif && (
                   <div className="mb-6">
                     <div className="flex flex-wrap gap-2">
@@ -319,7 +318,6 @@ export default function DetailFilm() {
                   </div>
                 )}
 
-                {/* Info jadwal dipilih + tombol */}
                 {jadwalDipilih && (
                   <div className="bg-white/5 border border-white/10 rounded-2xl p-4
                                   flex flex-col sm:flex-row sm:items-center
@@ -350,7 +348,6 @@ export default function DetailFilm() {
                   </div>
                 )}
 
-                {/* Prompt pilih jam kalau belum */}
                 {tanggalAktif && !jamAktif && (
                   <p className="text-gray-500 text-sm mt-2">
                     ↑ Pilih jam tayang untuk melanjutkan
@@ -367,6 +364,14 @@ export default function DetailFilm() {
         <hr className="border-white/10 mb-8" />
         <RatingFilm filmId={parseInt(id)} />
       </div>
+
+      {/* Modal Trailer */}
+      {showTrailer && (
+        <ModalTrailer
+          trailerUrl={film.trailer_url}
+          onClose={() => setShowTrailer(false)}
+        />
+      )}
 
     </div>
   )
