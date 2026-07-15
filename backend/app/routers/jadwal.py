@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import date, timedelta
 
 from app.database import get_db
 from app.dependencies import verify_token
@@ -61,7 +61,7 @@ def get_jadwal(
         FROM jadwal_tayang jt
         JOIN film   f ON f.id = jt.film_id
         JOIN studio s ON s.id = jt.studio_id
-        WHERE :tanggal BETWEEN jt.tanggal_mulai AND jt.tanggal_selesai
+        WHERE jt.tanggal = :tanggal
     """
     params = {"tanggal": tanggal}
 
@@ -100,28 +100,10 @@ def get_film_list(
     db: Session = Depends(get_db),
     _: dict = Depends(verify_token)
 ):
-    hari_ini = date.today()
-
-    hasil = db.execute(text("""
-        SELECT
-            id,
-            judul,
-            durasi_menit
-        FROM film
-        WHERE :hari_ini BETWEEN tanggal_mulai AND tanggal_selesai
-        ORDER BY judul
-    """), {
-        "hari_ini": hari_ini
-    }).fetchall()
-
-    return [
-        {
-            "id": r.id,
-            "judul": r.judul,
-            "durasi_menit": r.durasi_menit
-        }
-        for r in hasil
-    ]
+    hasil = db.execute(text(
+        "SELECT id, judul, durasi_menit FROM film ORDER BY judul"
+    )).fetchall()
+    return [{"id": r.id, "judul": r.judul, "durasi_menit": r.durasi_menit} for r in hasil]
 
 
 # ── GET: Studio list untuk dropdown ──────────────────────
@@ -180,8 +162,7 @@ def cek_bentrok_jadwal(
         WHERE jt.studio_id = :studio_id
           {exclude_clause}
           -- Cek overlap periode tayang
-          AND jt.tanggal_mulai   <= :tanggal_selesai
-          AND jt.tanggal_selesai >= :tanggal_mulai
+          AND jt.tanggal = :tanggal
           -- Cek overlap jam tayang
           AND :jam_tayang < ADDTIME(jt.jam_tayang, SEC_TO_TIME(f.durasi_menit * 60))
           AND :jam_selesai > jt.jam_tayang
@@ -219,18 +200,17 @@ def tambah_jadwal(
         )
 
     # Ambil durasi film
-    film = db.execute(
-    text("""
-        SELECT
-            durasi_menit,
-            judul,
-            tanggal_mulai,
-            tanggal_selesai
-        FROM film
-        WHERE id = :id
-    """),
-    {"id": body.film_id}
-).fetchone()
+    film = db.execute(text("""
+    SELECT
+        judul,
+        durasi_menit,
+        tanggal_mulai,
+        tanggal_selesai
+    FROM film
+    WHERE id=:id
+    """), {
+        "id": body.film_id
+    }).fetchone()
     if not film:
         raise HTTPException(status_code=404, detail="Film tidak ditemukan")
     
@@ -272,25 +252,48 @@ def tambah_jadwal(
     if pesan_bentrok:
         raise HTTPException(status_code=400, detail=pesan_bentrok)
 
-    db.execute(text("""
-        INSERT INTO jadwal_tayang
-            (film_id, studio_id, tanggal, tanggal_mulai, tanggal_selesai, jam_tayang, harga_tiket)
-        VALUES
-            (:film_id, :studio_id, :tanggal_mulai, :tanggal_mulai, :tanggal_selesai, :jam_tayang, :harga_tiket)
-    """), {
-        "film_id":         body.film_id,
-        "studio_id":       body.studio_id,
-        "tanggal_mulai":   body.tanggal_mulai,
-        "tanggal_selesai": body.tanggal_selesai,
-        "jam_tayang":      body.jam_tayang[:5] + ":00",
-        "harga_tiket":     body.harga_tiket,
-    })
-    db.commit()
+    tgl = body.tanggal_mulai
+
+    while tgl <= body.tanggal_selesai:
+
+        db.execute(text("""
+            INSERT INTO jadwal_tayang
+            (
+                film_id,
+                studio_id,
+                tanggal,
+                tanggal_mulai,
+                tanggal_selesai,
+                jam_tayang,
+                harga_tiket
+            )
+            VALUES
+            (
+                :film_id,
+                :studio_id,
+                :tanggal,
+                :tanggal_mulai,
+                :tanggal_selesai,
+                :jam_tayang,
+                :harga_tiket
+            )
+        """),{
+            "film_id": body.film_id,
+            "studio_id": body.studio_id,
+            "tanggal": tgl,
+            "tanggal_mulai": body.tanggal_mulai,
+            "tanggal_selesai": body.tanggal_selesai,
+            "jam_tayang": body.jam_tayang[:5] + ":00",
+            "harga_tiket": body.harga_tiket
+        })
+
+        tgl += timedelta(days=1)
+
+        db.commit()
 
     return {"message": f"Jadwal film '{film.judul}' berhasil ditambahkan"}
 
 
-# ── PUT: Update jadwal (perpanjang/perpendek periode) ─────
 @router.put("/{jadwal_id}")
 def update_jadwal(
     jadwal_id: int,
@@ -307,23 +310,21 @@ def update_jadwal(
     if not jadwal:
         raise HTTPException(status_code=404, detail="Jadwal tidak ditemukan")
 
-    # Pakai nilai baru atau nilai lama kalau tidak diubah
-    tgl_mulai    = body.tanggal_mulai   or jadwal.tanggal_mulai
-    tgl_selesai  = body.tanggal_selesai or jadwal.tanggal_selesai
-    jam_baru     = (body.jam_tayang[:5] + ":00") if body.jam_tayang else str(jadwal.jam_tayang)
-    harga_baru   = body.harga_tiket    or jadwal.harga_tiket
+    # --- PERUBAHAN DI SINI ---
+    # Jangan ambil tanggal_mulai/selesai dari body untuk update baris ini.
+    # Kita hanya mengizinkan perubahan jam dan harga pada tanggal tersebut.
+    
+    jam_baru   = (body.jam_tayang[:5] + ":00") if body.jam_tayang else str(jadwal.jam_tayang)
+    harga_baru = body.harga_tiket if body.harga_tiket is not None else jadwal.harga_tiket
 
-    if tgl_selesai < tgl_mulai:
-        raise HTTPException(status_code=400, detail="Tanggal selesai tidak boleh sebelum tanggal mulai!")
-
-    # Validasi bentrok (exclude diri sendiri)
+    # Validasi bentrok (tetap gunakan tanggal yang ada di baris tersebut)
     pesan_bentrok = cek_bentrok_jadwal(
         db              = db,
         studio_id       = jadwal.studio_id,
         jam_tayang      = jam_baru[:5],
         durasi_menit    = jadwal.durasi_menit,
-        tanggal_mulai   = tgl_mulai,
-        tanggal_selesai = tgl_selesai,
+        tanggal_mulai   = jadwal.tanggal, # Menggunakan tanggal baris ini
+        tanggal_selesai = jadwal.tanggal, # Menggunakan tanggal baris ini
         exclude_id      = jadwal_id,
     )
     if pesan_bentrok:
@@ -331,22 +332,17 @@ def update_jadwal(
 
     db.execute(text("""
         UPDATE jadwal_tayang
-        SET tanggal        = :tgl_mulai,
-            tanggal_mulai  = :tgl_mulai,
-            tanggal_selesai = :tgl_selesai,
-            jam_tayang     = :jam,
-            harga_tiket    = :harga
+        SET jam_tayang  = :jam,
+            harga_tiket = :harga
         WHERE id = :id
     """), {
-        "tgl_mulai":  tgl_mulai,
-        "tgl_selesai": tgl_selesai,
-        "jam":        jam_baru,
-        "harga":      harga_baru,
-        "id":         jadwal_id,
+        "jam":    jam_baru,
+        "harga":  harga_baru,
+        "id":     jadwal_id,
     })
     db.commit()
 
-    return {"message": "Jadwal berhasil diperbarui"}
+    return {"message": "Jadwal pada tanggal ini berhasil diperbarui"}
 
 
 # ── DELETE: Hapus jadwal ──────────────────────────────────
