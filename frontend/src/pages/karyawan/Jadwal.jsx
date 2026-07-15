@@ -52,8 +52,16 @@ function ModalTambahJadwal({ studioId, namaStudio, filmList, onClose, onSimpan }
       onSimpan()
       onClose()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Gagal menambah jadwal.')
-    } finally {
+  console.log(err)
+  console.log(err.response)
+  console.log(err.response?.data)
+
+  setError(
+    err.response?.data?.detail ||
+    JSON.stringify(err.response?.data) ||
+    'Gagal menambah jadwal.'
+  )
+} finally {
       setLoading(false)
     }
   }

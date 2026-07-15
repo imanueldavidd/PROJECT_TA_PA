@@ -155,26 +155,27 @@ def cek_bentrok_jadwal(
     ), {"jam": jam_tayang[:5] + ":00", "durasi": durasi_menit}).fetchone().selesai
 
     bentrok = db.execute(text(f"""
-        SELECT jt.id, f.judul, jt.jam_tayang,
-               ADDTIME(jt.jam_tayang, SEC_TO_TIME(f.durasi_menit * 60)) AS jam_selesai_existing
-        FROM jadwal_tayang jt
-        JOIN film f ON f.id = jt.film_id
-        WHERE jt.studio_id = :studio_id
-          {exclude_clause}
-          -- Cek overlap periode tayang
-          AND jt.tanggal = :tanggal
-          -- Cek overlap jam tayang
-          AND :jam_tayang < ADDTIME(jt.jam_tayang, SEC_TO_TIME(f.durasi_menit * 60))
-          AND :jam_selesai > jt.jam_tayang
-        LIMIT 1
-    """), {
-        "studio_id":       studio_id,
-        "tanggal_mulai":   tanggal_mulai,
-        "tanggal_selesai": tanggal_selesai,
-        "jam_tayang":      jam_tayang[:5] + ":00",
-        "jam_selesai":     str(jam_selesai),
-        "exclude_id":      exclude_id,
-    }).fetchone()
+    SELECT jt.id, f.judul, jt.jam_tayang,
+           ADDTIME(jt.jam_tayang, SEC_TO_TIME(f.durasi_menit * 60)) AS jam_selesai_existing
+    FROM jadwal_tayang jt
+    JOIN film f ON f.id = jt.film_id
+    WHERE jt.studio_id = :studio_id
+      {exclude_clause}
+      -- Cek overlap periode tayang (rentang vs rentang)
+      AND :tanggal_mulai <= jt.tanggal_selesai
+      AND :tanggal_selesai >= jt.tanggal_mulai
+      -- Cek overlap jam tayang
+      AND :jam_tayang < ADDTIME(jt.jam_tayang, SEC_TO_TIME(f.durasi_menit * 60))
+      AND :jam_selesai > jt.jam_tayang
+    LIMIT 1
+"""), {
+    "studio_id":       studio_id,
+    "tanggal_mulai":   tanggal_mulai,
+    "tanggal_selesai": tanggal_selesai,
+    "jam_tayang":      jam_tayang[:5] + ":00",
+    "jam_selesai":     str(jam_selesai),
+    "exclude_id":      exclude_id,
+}).fetchone()
 
     if bentrok:
         return (
