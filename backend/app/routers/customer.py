@@ -190,6 +190,7 @@ def get_film_detail(film_id: int, db: Session = Depends(get_db)):
         "rating":       film.rating,
         "sinopsis":     film.sinopsis,
         "poster_url":   film.poster_url,
+        "trailer_url":  film.trailer_url,
         "status":       film.status,
         "jadwal": [
             {
