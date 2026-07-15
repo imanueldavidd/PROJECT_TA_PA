@@ -100,15 +100,19 @@ def get_film_list(
     db: Session = Depends(get_db),
     _: dict = Depends(verify_token)
 ):
+    hari_ini = date.today()
+
     hasil = db.execute(text("""
         SELECT
             id,
             judul,
             durasi_menit
         FROM film
-        WHERE status = 'tayang'
+        WHERE :hari_ini BETWEEN tanggal_mulai AND tanggal_selesai
         ORDER BY judul
-    """)).fetchall()
+    """), {
+        "hari_ini": hari_ini
+    }).fetchall()
 
     return [
         {
