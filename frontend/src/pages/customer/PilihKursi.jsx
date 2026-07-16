@@ -112,29 +112,44 @@ export default function PilihKursi() {
           <div className="text-center py-12 text-gray-400">Memuat kursi...</div>
         ) : (
           <div className="overflow-x-auto pb-2">
-            <div className="inline-block mx-auto">
+            <div className="inline-block mx-auto min-w-[550px] text-center w-full">
               {barisUrut.map((baris) => (
-                <div key={baris} className="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
-                  <span className="w-5 text-xs text-gray-400 text-right shrink-0">{baris}</span>
-                  <div className="flex gap-1 sm:gap-1.5">
+                <div key={baris} className="flex items-center justify-center gap-1.5 mb-2">
+                  {/* Label baris kiri */}
+                  <span className="w-5 text-xs text-gray-400 font-bold text-right shrink-0 mr-2">
+                    {baris}
+                  </span>
+
+                  {/* Tombol kursi */}
+                  <div className="flex">
                     {barisMap[baris]
                       .sort((a, b) => parseInt(a.kode_kursi.slice(1)) - parseInt(b.kode_kursi.slice(1)))
                       .map(k => {
                         const status = k.status === 'penuh' ? 'penuh'
                           : kursiDipilih.find(x => x.id === k.id) ? 'pilihan' : 'tersedia'
+
+                        const nomorKursi = parseInt(k.kode_kursi.slice(1))
+                        const isJalan = nomorKursi === 2 || nomorKursi === 9
+
                         return (
                           <button key={k.id} onClick={() => toggleKursi(k)}
                             disabled={k.status === 'penuh'}
-                            className={`w-8 h-7 sm:w-10 sm:h-9 rounded border-2
-                                       text-[9px] sm:text-xs font-bold transition-all
-                                       ${WARNA[status]}`}>
-                            {k.kode_kursi}
+                            className={`w-8 h-7 sm:w-10 sm:h-9 rounded-t-lg border-2
+                                       text-[10px] sm:text-xs font-bold transition-all
+                                       flex items-center justify-center
+                                       ${WARNA[status]}
+                                       ${isJalan ? 'mr-8 sm:mr-12' : 'mr-1 sm:mr-1.5'}`}>
+                            {nomorKursi}
                           </button>
                         )
                       })
                     }
                   </div>
-                  <span className="w-5 text-xs text-gray-400 shrink-0">{baris}</span>
+
+                  {/* Label baris kanan */}
+                  <span className="w-5 text-xs text-gray-400 font-bold shrink-0 ml-2">
+                    {baris}
+                  </span>
                 </div>
               ))}
             </div>

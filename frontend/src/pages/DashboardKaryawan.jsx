@@ -10,6 +10,7 @@ import Tiket   from './karyawan/Tiket'
 import Film    from './karyawan/film'
 import Laporan from './karyawan/laporan'
 import Banner from './karyawan/banner'
+import ToastNotifikasi from '../components/ToastNotifikasi'
 
 // ── Menu sidebar karyawan ─────────────────────────────────
 const MENU = [
@@ -128,6 +129,7 @@ export default function DashboardKaryawan() {
 
   return (
     <SidebarLayout menuItems={MENU} onLogout={handleLogout}>
+      <ToastNotifikasi />
       <Routes>
         <Route index          element={<DashboardHome />} />
         <Route path="jadwal"  element={<Jadwal />} />
