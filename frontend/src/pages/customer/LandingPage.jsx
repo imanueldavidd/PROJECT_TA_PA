@@ -11,6 +11,55 @@ const posterSrc = (url) => {
   return `${API_BASE}${url}`                    // URL lokal lama
 }
 
+// Helper ekstrak YouTube ID
+const getYoutubeId = (url) => {
+  if (!url) return null
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/]+)/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
+// Modal Trailer
+function ModalTrailer({ trailerUrl, onClose }) {
+  const videoId = getYoutubeId(trailerUrl)
+  if (!videoId) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm
+                 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 text-white text-3xl font-bold
+                     hover:text-gray-300 transition"
+        >
+          ✕
+        </button>
+        <div className="relative w-full rounded-2xl overflow-hidden bg-black"
+             style={{ aspectRatio: '16/9' }}>
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1`}
+            title="Trailer Film"
+            allowFullScreen
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
 // ════════════════════════════════════════════════════════
 // Navbar
 // ════════════════════════════════════════════════════════
@@ -236,10 +285,10 @@ function HeroBanner({ bannerList, onKlikFilm }) {
 // ════════════════════════════════════════════════════════
 // Kartu Film
 // ════════════════════════════════════════════════════════
-function KartuFilm({ film, onClick, segera }) {
+function KartuFilm({ film, onClick, onTrailer, segera }) {
   return (
     <div
-      onClick={onClick}   // ← sekarang semua film bisa diklik
+      onClick={onClick}
       className={`group rounded-xl overflow-hidden transition-all duration-300
         cursor-pointer hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50`}
     >
@@ -269,16 +318,26 @@ function KartuFilm({ film, onClick, segera }) {
 
         {/* Overlay hover */}
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100
-                        transition-opacity flex items-end p-3">
+                        transition-opacity flex flex-col items-center justify-end gap-2 p-3">
+
+          {/* Tombol Trailer — muncul kalau ada trailer_url */}
+          {film.trailer_url && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onTrailer(film.trailer_url) }}
+              className="w-full bg-white/90 hover:bg-white text-gray-900
+                         text-xs font-bold py-2 rounded-lg text-center
+                         flex items-center justify-center gap-1.5 transition"
+            >
+              ▶ Lihat Trailer
+            </button>
+          )}
+
           <span className={`w-full text-white text-xs font-bold py-2 rounded-lg text-center
             ${segera ? 'bg-yellow-600' : 'bg-blue-600'}`}>
             {segera ? 'Lihat Detail' : 'Pesan Tiket'}
           </span>
         </div>
       </div>
-
-      {/* Judul di bawah poster — hanya untuk film TAYANG */}
-      {!segera && (
         <div className="bg-gray-900 px-3 py-2">
           <h3 className="font-bold text-xs sm:text-sm text-white truncate">
             {film.judul}
@@ -287,7 +346,6 @@ function KartuFilm({ film, onClick, segera }) {
             <p className="text-gray-400 text-xs truncate mt-0.5">{film.genre}</p>
           )}
         </div>
-      )}
     </div>
   )
 }
@@ -300,6 +358,7 @@ export default function LandingPage() {
   const navigate = useNavigate()
   const isLogin  = !!localStorage.getItem('customer_token')
   const nama     = localStorage.getItem('customer_nama') || ''
+  const [trailerAktif, setTrailerAktif] = useState(null) // url trailer yang lagi dibuka
 
   const [filmTayang, setFilmTayang] = useState([])
   const [filmSegera, setFilmSegera] = useState([])
@@ -383,7 +442,12 @@ export default function LandingPage() {
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                   {filtered(filmTayang).map(f => (
-                    <KartuFilm key={f.id} film={f} onClick={() => handleKlikFilm(f.id)} />
+                    <KartuFilm
+                      key={f.id}
+                      film={f}
+                      onClick={() => handleKlikFilm(f.id)}
+                      onTrailer={(url) => setTrailerAktif(url)}
+                    />
                   ))}
                 </div>
               </section>
@@ -397,11 +461,12 @@ export default function LandingPage() {
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                   {filtered(filmSegera).map(f => (
-                    <KartuFilm 
-                      key={f.id} 
-                      film={f} 
-                      segera 
+                    <KartuFilm
+                      key={f.id}
+                      film={f}
+                      segera
                       onClick={() => handleKlikFilm(f.id)}
+                      onTrailer={(url) => setTrailerAktif(url)}
                     />
                   ))}
                 </div>
@@ -429,6 +494,13 @@ export default function LandingPage() {
           <p className="text-gray-500 text-xs">Nikmati pengalaman menonton terbaik © 2026</p>
         </div>
       </footer>
+      {/* Modal Trailer */}
+      {trailerAktif && (
+        <ModalTrailer
+          trailerUrl={trailerAktif}
+          onClose={() => setTrailerAktif(null)}
+        />
+      )}
     </div>
   )
 }
