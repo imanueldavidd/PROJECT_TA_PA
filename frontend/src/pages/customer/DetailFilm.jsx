@@ -8,6 +8,12 @@ import RatingFilm from '../../components/RatingFilm'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
 
+const posterSrc = (url) => {
+  if (!url) return null
+  if (url.startsWith('http')) return url
+  return `${API_BASE}${url}`
+}
+
 // ── Helper ────────────────────────────────────────────────
 const HARI  = ['Min','Sen','Sel','Rab','Kam','Jum','Sab']
 const BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
@@ -146,7 +152,7 @@ export default function DetailFilm() {
             {/* Poster + tombol trailer */}
             <div className="w-28 sm:w-36 lg:w-full shrink-0 relative">
               {film.poster_url ? (
-                <img src={`${API_BASE}${film.poster_url}`} alt={film.judul}
+                <img src={posterSrc(film.poster_url)} alt={film.judul}
                     className="w-full rounded-2xl shadow-2xl"
                     style={{ aspectRatio: '2/3', objectFit: 'cover' }} />
               ) : (
