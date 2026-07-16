@@ -17,15 +17,11 @@ const fmtTanggal = (str) => {
 }
 
 // ModalTambahJadwal — versi update dengan periode tayang
-function ModalTambahJadwal({ studioId, namaStudio, filmList, onClose, onSimpan }) {
-  const hariIni = () => new Date().toISOString().split('T')[0]
-
+function ModalTambahJadwal({ studioId, namaStudio, filmList, tanggal, onClose, onSimpan }) {
   const [form, setForm] = useState({
-    film_id:         '',
-    jam_tayang:      '',
-    harga_tiket:     50000,
-    tanggal_mulai:   hariIni(),
-    tanggal_selesai: hariIni(),
+    film_id:     '',
+    jam_tayang:  '',
+    harga_tiket: 50000,
   })
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -35,33 +31,24 @@ function ModalTambahJadwal({ studioId, namaStudio, filmList, onClose, onSimpan }
       setError('Film dan jam tayang wajib diisi!')
       return
     }
-    if (form.tanggal_selesai < form.tanggal_mulai) {
-      setError('Tanggal selesai tidak boleh sebelum tanggal mulai!')
-      return
-    }
     setLoading(true)
     try {
       await api.post('/api/jadwal/', {
-        film_id:         parseInt(form.film_id),
-        studio_id:       studioId,
-        tanggal_mulai:   form.tanggal_mulai,
-        tanggal_selesai: form.tanggal_selesai,
-        jam_tayang:      form.jam_tayang + ':00',
-        harga_tiket:     parseFloat(form.harga_tiket),
+        film_id:     parseInt(form.film_id),
+        studio_id:   studioId,
+        tanggal:     tanggal,          // ← ambil dari filter tanggal aktif
+        jam_tayang:  form.jam_tayang + ':00',
+        harga_tiket: parseFloat(form.harga_tiket),
       })
       onSimpan()
       onClose()
     } catch (err) {
-  console.log(err)
-  console.log(err.response)
-  console.log(err.response?.data)
-
-  setError(
-    err.response?.data?.detail ||
-    JSON.stringify(err.response?.data) ||
-    'Gagal menambah jadwal.'
-  )
-} finally {
+      setError(
+        err.response?.data?.detail ||
+        JSON.stringify(err.response?.data) ||
+        'Gagal menambah jadwal.'
+      )
+    } finally {
       setLoading(false)
     }
   }
@@ -70,7 +57,10 @@ function ModalTambahJadwal({ studioId, namaStudio, filmList, onClose, onSimpan }
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
         <h3 className="font-bold text-gray-800 text-lg mb-1">Tambah Jadwal</h3>
-        <p className="text-gray-500 text-sm mb-5">{namaStudio}</p>
+        <p className="text-gray-500 text-sm mb-1">{namaStudio}</p>
+        <p className="text-blue-600 text-sm font-semibold mb-5">
+          📅 {fmtTanggal(tanggal)}
+        </p>
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
@@ -102,47 +92,6 @@ function ModalTambahJadwal({ studioId, namaStudio, filmList, onClose, onSimpan }
                          focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-
-          {/* Periode Tayang */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
-                TANGGAL MULAI
-              </label>
-              <input type="date" value={form.tanggal_mulai}
-                onChange={e => setForm({...form, tanggal_mulai: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
-                TANGGAL SELESAI
-              </label>
-              <input type="date" value={form.tanggal_selesai}
-                min={form.tanggal_mulai}
-                onChange={e => setForm({...form, tanggal_selesai: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Info durasi tayang */}
-          {form.tanggal_mulai && form.tanggal_selesai && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-              <p className="text-blue-600 text-xs">
-                📅 Tayang selama{' '}
-                <strong>
-                  {Math.ceil(
-                    (new Date(form.tanggal_selesai) - new Date(form.tanggal_mulai))
-                    / (1000 * 60 * 60 * 24)
-                  ) + 1} hari
-                </strong>
-                {' '}({form.tanggal_mulai} s/d {form.tanggal_selesai})
-              </p>
-            </div>
-          )}
 
           {/* Harga */}
           <div>
@@ -177,26 +126,18 @@ function ModalTambahJadwal({ studioId, namaStudio, filmList, onClose, onSimpan }
 // Modal untuk edit periode jadwal (perpanjang/perpendek)
 function ModalEditJadwal({ jadwal, onClose, onSimpan }) {
   const [form, setForm] = useState({
-    tanggal_mulai:   jadwal.tanggal_mulai,
-    tanggal_selesai: jadwal.tanggal_selesai,
-    jam_tayang:      jadwal.jam_tayang,
-    harga_tiket:     jadwal.harga_tiket,
+    jam_tayang:  jadwal.jam_tayang?.slice(0, 5) || '',
+    harga_tiket: jadwal.harga_tiket,
   })
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
   const handleSubmit = async () => {
-    if (form.tanggal_selesai < form.tanggal_mulai) {
-      setError('Tanggal selesai tidak boleh sebelum tanggal mulai!')
-      return
-    }
     setLoading(true)
     try {
       await api.put(`/api/jadwal/${jadwal.id}`, {
-        tanggal_mulai:   form.tanggal_mulai,
-        tanggal_selesai: form.tanggal_selesai,
-        jam_tayang:      form.jam_tayang,
-        harga_tiket:     parseFloat(form.harga_tiket),
+        jam_tayang:  form.jam_tayang,
+        harga_tiket: parseFloat(form.harga_tiket),
       })
       onSimpan()
       onClose()
@@ -211,7 +152,10 @@ function ModalEditJadwal({ jadwal, onClose, onSimpan }) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
         <h3 className="font-bold text-gray-800 text-lg mb-1">Edit Jadwal</h3>
-        <p className="text-gray-500 text-sm mb-5">{jadwal.judul_film} — {jadwal.nama_studio}</p>
+        <p className="text-gray-500 text-sm mb-1">{jadwal.judul_film} — {jadwal.nama_studio}</p>
+        <p className="text-blue-600 text-sm font-semibold mb-5">
+          📅 {fmtTanggal(jadwal.tanggal)}
+        </p>
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
@@ -222,47 +166,11 @@ function ModalEditJadwal({ jadwal, onClose, onSimpan }) {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">JAM TAYANG</label>
-            <input type="time" value={form.jam_tayang?.slice(0, 5)}
+            <input type="time" value={form.jam_tayang}
               onChange={e => setForm({...form, jam_tayang: e.target.value})}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
                          focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
-                TANGGAL MULAI
-              </label>
-              <input type="date" value={form.tanggal_mulai}
-                onChange={e => setForm({...form, tanggal_mulai: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
-                TANGGAL SELESAI
-              </label>
-              <input type="date" value={form.tanggal_selesai}
-                min={form.tanggal_mulai}
-                onChange={e => setForm({...form, tanggal_selesai: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          </div>
-
-          {form.tanggal_mulai && form.tanggal_selesai && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-              <p className="text-blue-600 text-xs">
-                📅 Tayang selama{' '}
-                <strong>
-                  {Math.ceil(
-                    (new Date(form.tanggal_selesai) - new Date(form.tanggal_mulai))
-                    / (1000 * 60 * 60 * 24)
-                  ) + 1} hari
-                </strong>
-              </p>
-            </div>
-          )}
 
           <div>
             <label className="block text-xs font-bold text-gray-500 tracking-widest mb-1">
@@ -302,12 +210,8 @@ function SlotJadwal({ jadwal, onHapus, onEdit }) {
         <p className="text-gray-500 text-xs mt-0.5">
           {fmtJam(jadwal.jam_tayang)} – {fmtJam(jadwal.jam_selesai)}
         </p>
-        <p className="text-gray-400 text-xs">
-          s/d {jadwal.tanggal_selesai}
-        </p>
       </div>
 
-      {/* Tombol edit & hapus saat hover */}
       <div className="absolute -top-2 -right-2 hidden group-hover:flex gap-1">
         <button onClick={() => onEdit(jadwal)}
           className="bg-blue-500 text-white rounded-full w-5 h-5 text-xs
@@ -358,6 +262,7 @@ export default function Jadwal() {
 
   // Modal state
   const [modal, setModal] = useState(null) // { studioId, namaStudio } | null
+  const [modalEdit, setModalEdit] = useState(null) // jadwal object | null
 
   // ── Fetch dropdown data (sekali saja) ─────────────────
   useEffect(() => {
@@ -524,6 +429,7 @@ export default function Jadwal() {
                                 key={j.id}
                                 jadwal={j}
                                 onHapus={handleHapus}
+                                onEdit={(jadwal) => setModalEdit(jadwal)}
                               />
                             ))}
 
@@ -562,6 +468,18 @@ export default function Jadwal() {
           onClose={() => setModal(null)}
           onSimpan={() => {
             setNotif('✅ Jadwal berhasil ditambahkan!')
+            setTimeout(() => setNotif(''), 3000)
+            fetchJadwal()
+          }}
+        />
+      )}
+      {/* Modal Edit Jadwal */}
+      {modalEdit && (
+        <ModalEditJadwal
+          jadwal={modalEdit}
+          onClose={() => setModalEdit(null)}
+          onSimpan={() => {
+            setNotif('✅ Jadwal berhasil diperbarui!')
             setTimeout(() => setNotif(''), 3000)
             fetchJadwal()
           }}
