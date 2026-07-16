@@ -14,6 +14,7 @@ from jose import jwt, JWTError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import Field
 from app.routers.customer_auth import conf, kirim_email_tiket
+from app.routers.jadwal import hitung_status_film
 
 from app.database import get_db
 
@@ -162,6 +163,9 @@ def get_film_detail(film_id: int, db: Session = Depends(get_db)):
     if not film:
         raise HTTPException(status_code=404, detail="Film tidak ditemukan")
 
+    # Hitung status otomatis dari tanggal, sama seperti di get_films
+    status_hitung = hitung_status_film(film.tanggal_mulai, film.tanggal_selesai)
+
     jadwal = db.execute(text("""
         SELECT
             jt.id, jt.tanggal, jt.jam_tayang, jt.harga_tiket,
@@ -191,7 +195,7 @@ def get_film_detail(film_id: int, db: Session = Depends(get_db)):
         "sinopsis":     film.sinopsis,
         "poster_url":   film.poster_url,
         "trailer_url":  film.trailer_url,
-        "status":       film.status,
+        "status":       status_hitung,     # ← pakai hasil hitung, bukan film.status
         "jadwal": [
             {
                 "id":             j.id,
