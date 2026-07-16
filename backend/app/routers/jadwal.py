@@ -90,10 +90,18 @@ def get_film_list(
     db: Session = Depends(get_db),
     _: dict = Depends(verify_token)
 ):
-    hasil = db.execute(text(
-        "SELECT id, judul, durasi_menit FROM film ORDER BY judul"
-    )).fetchall()
-    return [{"id": r.id, "judul": r.judul, "durasi_menit": r.durasi_menit} for r in hasil]
+    hasil = db.execute(text("""
+        SELECT id, judul, durasi_menit, tanggal_mulai, tanggal_selesai
+        FROM film
+        ORDER BY judul
+    """)).fetchall()
+
+    # Filter hanya film berstatus 'tayang'
+    return [
+        {"id": r.id, "judul": r.judul, "durasi_menit": r.durasi_menit}
+        for r in hasil
+        if hitung_status_film(r.tanggal_mulai, r.tanggal_selesai) == 'tayang'
+    ]
 
 
 # ── GET: Studio list untuk dropdown ──────────────────────
